@@ -52,10 +52,16 @@ import { Sequence } from 'sequaljs';
 const seq = Sequence.fromProforma('[Acetyl]-PEPTIDE-[Amidated]');
 
 // Access N-terminal modification (position -1)
-console.log(seq.mods[-1][0].modValue.primaryValue); // "Acetyl"
+const nTermMod = seq.mods.get(-1);
+if (nTermMod) {
+  console.log(nTermMod[0].modValue.primaryValue); // "Acetyl"
+}
 
 // Access C-terminal modification (position -2)
-console.log(seq.mods[-2][0].modValue.primaryValue); // "Amidated"
+const cTermMod = seq.mods.get(-2);
+if (cTermMod) {
+  console.log(cTermMod[0].modValue.primaryValue); // "Amidated"
+}
 ```
 
 ### Global Modifications
