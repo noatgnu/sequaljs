@@ -1,0 +1,40 @@
+{
+  "name": "sequaljs",
+  "version": "1.0.0",
+  "description": "JavaScript/TypeScript library for parsing and manipulating ProForma peptide sequence notation",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "keywords": [
+    "proteomics",
+    "peptide",
+    "proforma",
+    "sequence",
+    "modification",
+    "parser"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/noatgnu/sequaljs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/noatgnu/sequaljs/issues"
+  },
+  "homepage": "https://github.com/noatgnu/sequaljs#readme",
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.14.1",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.3.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}
