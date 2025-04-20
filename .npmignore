@@ -1,0 +1,8 @@
+src/
+node_modules/
+.git/
+.idea/
+.vscode/
+*.log
+tsconfig.json
+jest.config.js
