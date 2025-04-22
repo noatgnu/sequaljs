@@ -33,7 +33,7 @@ describe('ProForma', () => {
   });
 
   test('terminal modifications', () => {
-    const proforma = "[Acetyl]-PEPTIDE-[Amidated]";
+    const proforma = "[Acetyl][Acetyl]-PEPTIDE-[Amidated]";
     const seq = Sequence.fromProforma(proforma);
 
     expect(seq.toStrippedString()).toBe("PEPTIDE");
@@ -249,7 +249,7 @@ describe('ProForma', () => {
     // Valid formulas
     const validProforma = [
       "PEPT[Formula:C2H3NO]IDE",
-      "PEPT[Formula:C-1H2]IDE"  // Negative element count
+      "PEPT[Formula:C-1H2]IDE"
     ];
 
     for (const proforma of validProforma) {
@@ -258,9 +258,6 @@ describe('ProForma', () => {
       expect(seq.seq[3].mods[0].source).toBe("Formula");
       expect(seq.toProforma()).toBe(proforma);
     }
-
-    // Invalid formulas should throw errors if the implementation validates them
-    // This would need to be wrapped in expect().toThrow() if the implementation throws
   });
 
   test('glycan notation', () => {

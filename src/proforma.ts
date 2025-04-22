@@ -16,14 +16,14 @@ export class SequenceAmbiguity {
 
 export class ProFormaParser {
   static readonly MASS_SHIFT_PATTERN = /^[+-]\d+(\.\d+)?$/;
-  static readonly TERMINAL_PATTERN = /^\[([^\]]+)\]-(.+)-\[([^\]]+)\]$/;
-  static readonly N_TERMINAL_PATTERN = /^\[([^\]]+)\]-(.+)$/;
-  static readonly C_TERMINAL_PATTERN = /^(.+)-\[([^\]]+)\]$/;
+  //static readonly TERMINAL_PATTERN = /^(\[([^\]]+)\])+-(.*)-(\[([^\]]+)\])+$/;
+  //static readonly N_TERMINAL_PATTERN = /^(\[([^\]]+)\])+-(.*)$/;
+  //static readonly C_TERMINAL_PATTERN = /^(.*)-(\[([^\]]+)\])+$/;
   static readonly CROSSLINK_PATTERN = /^([^#]+)#(XL[A-Za-z0-9]+)$/;
   static readonly CROSSLINK_REF_PATTERN = /^#(XL[A-Za-z0-9]+)$/;
   static readonly BRANCH_PATTERN = /^([^#]+)#BRANCH$/;
   static readonly BRANCH_REF_PATTERN = /^#BRANCH$/;
-  static readonly UNKNOWN_POSITION_PATTERN = /(\[([^\]]+)\])(\^(\d+))?(\?)/;
+  //static readonly UNKNOWN_POSITION_PATTERN = /(\[([^\]]+)\])(\^(\d+))?(\?)/;
 
 
   static parse(proformaStr: string): [string, Record<number, Modification[]>, GlobalModification[], SequenceAmbiguity[]] {
@@ -151,32 +151,78 @@ export class ProFormaParser {
 
     proformaStr = proformaStr.substring(i);
 
-    let nTermModStr: string | null = null;
-    let cTermModStr: string | null = null;
+    if (proformaStr.includes('-')) {
+      if (proformaStr.startsWith('[')) {
+        // Extract N-terminal part
+        let dashIndex = proformaStr.indexOf('-');
+        let nTermPart = proformaStr.substring(0, dashIndex);
+        proformaStr = proformaStr.substring(dashIndex + 1);
 
-    let match = ProFormaParser.TERMINAL_PATTERN.exec(proformaStr);
-    if (match) {
-      [, nTermModStr, proformaStr, cTermModStr] = match;
-    } else if (match = ProFormaParser.N_TERMINAL_PATTERN.exec(proformaStr)) {
-      [, nTermModStr, proformaStr] = match;
-    } else if (match = ProFormaParser.C_TERMINAL_PATTERN.exec(proformaStr)) {
-      [, proformaStr, cTermModStr] = match;
-    }
+        // Parse N-terminal modifications
+        let i = 0;
+        while (i < nTermPart.length) {
+          if (nTermPart[i] === '[') {
+            let bracketCount = 1;
+            let j = i + 1;
 
-    if (nTermModStr) {
-      const nTermMod = ProFormaParser._createModification(
-        nTermModStr,
-        { isTerminal: true }
-      );
-      getModsAtPosition(-1).push(nTermMod);
-    }
+            while (j < nTermPart.length && bracketCount > 0) {
+              if (nTermPart[j] === '[') bracketCount++;
+              if (nTermPart[j] === ']') bracketCount--;
+              j++;
+            }
 
-    if (cTermModStr) {
-      const cTermMod = ProFormaParser._createModification(
-        cTermModStr,
-        { isTerminal: true }
-      );
-      getModsAtPosition(-2).push(cTermMod);
+            if (bracketCount === 0) {
+              const modStr = nTermPart.substring(i + 1, j - 1);
+              const nTermMod = ProFormaParser._createModification(
+                modStr,
+                { isTerminal: true }
+              );
+              getModsAtPosition(-1).push(nTermMod);
+            }
+
+            i = j;
+          } else {
+            i++;
+          }
+        }
+      }
+
+      // Handle C-terminal modifications
+      if (proformaStr.includes('-')) {
+        let dashIndex = proformaStr.lastIndexOf('-');
+        if (proformaStr[dashIndex+1] === "[") {
+          let cTermPart = proformaStr.substring(dashIndex + 1);
+          proformaStr = proformaStr.substring(0, dashIndex);
+
+          let i = 0;
+          while (i < cTermPart.length) {
+            if (cTermPart[i] === '[') {
+              let bracketCount = 1;
+              let j = i + 1;
+
+              while (j < cTermPart.length && bracketCount > 0) {
+                if (cTermPart[j] === '[') bracketCount++;
+                if (cTermPart[j] === ']') bracketCount--;
+                j++;
+              }
+
+              if (bracketCount === 0) {
+                const modStr = cTermPart.substring(i + 1, j - 1);
+                const cTermMod = ProFormaParser._createModification(
+                  modStr,
+                  { isTerminal: true }
+                );
+                getModsAtPosition(-2).push(cTermMod);
+              }
+
+              i = j;
+            } else {
+              i++;
+            }
+          }
+        }
+
+      }
     }
 
     i = 0;
