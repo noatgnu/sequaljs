@@ -152,9 +152,20 @@ export class ProFormaParser {
     proformaStr = proformaStr.substring(i);
 
     if (proformaStr.includes('-')) {
-      if (proformaStr.startsWith('[')) {
+      // Find the first dash that's outside of brackets
+      let dashIndex = -1;
+      let bracketDepth = 0;
+      for (let i = 0; i < proformaStr.length; i++) {
+        if (proformaStr[i] === '[') bracketDepth++;
+        else if (proformaStr[i] === ']') bracketDepth--;
+        else if (proformaStr[i] === '-' && bracketDepth === 0) {
+          dashIndex = i;
+          break;
+        }
+      }
+
+      if (dashIndex !== -1 && proformaStr.startsWith('[')) {
         // Extract N-terminal part
-        let dashIndex = proformaStr.indexOf('-');
         let nTermPart = proformaStr.substring(0, dashIndex);
         proformaStr = proformaStr.substring(dashIndex + 1);
 
@@ -174,8 +185,8 @@ export class ProFormaParser {
             if (bracketCount === 0) {
               const modStr = nTermPart.substring(i + 1, j - 1);
               const nTermMod = ProFormaParser._createModification(
-                modStr,
-                { isTerminal: true }
+                  modStr,
+                  { isTerminal: true }
               );
               getModsAtPosition(-1).push(nTermMod);
             }
@@ -189,8 +200,19 @@ export class ProFormaParser {
 
       // Handle C-terminal modifications
       if (proformaStr.includes('-')) {
-        let dashIndex = proformaStr.lastIndexOf('-');
-        if (proformaStr[dashIndex+1] === "[") {
+        // Find the last dash that's outside of brackets
+        let dashIndex = -1;
+        let bracketDepth = 0;
+        for (let i = proformaStr.length - 1; i >= 0; i--) {
+          if (proformaStr[i] === ']') bracketDepth++;
+          else if (proformaStr[i] === '[') bracketDepth--;
+          else if (proformaStr[i] === '-' && bracketDepth === 0) {
+            dashIndex = i;
+            break;
+          }
+        }
+
+        if (dashIndex !== -1 && dashIndex + 1 < proformaStr.length && proformaStr[dashIndex+1] === "[") {
           let cTermPart = proformaStr.substring(dashIndex + 1);
           proformaStr = proformaStr.substring(0, dashIndex);
 
@@ -209,8 +231,8 @@ export class ProFormaParser {
               if (bracketCount === 0) {
                 const modStr = cTermPart.substring(i + 1, j - 1);
                 const cTermMod = ProFormaParser._createModification(
-                  modStr,
-                  { isTerminal: true }
+                    modStr,
+                    { isTerminal: true }
                 );
                 getModsAtPosition(-2).push(cTermMod);
               }
@@ -221,7 +243,6 @@ export class ProFormaParser {
             }
           }
         }
-
       }
     }
 

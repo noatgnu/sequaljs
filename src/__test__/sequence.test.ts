@@ -53,6 +53,17 @@ describe('ProForma', () => {
     }
 
     expect(seq.toProforma()).toBe(proforma);
+
+    const proforma2 = "<[Carbamidomethyl|INFO:Standard alkylation]@C>[Acetyl|INFO:Added during processing]-PEPTCDE-[Amidated|INFO:Common C-terminal mod]";
+    const seq2 = Sequence.fromProforma(proforma2);
+    expect(seq2.toStrippedString()).toBe("PEPTCDE");
+
+    // Global modification
+    const globMods = seq2.globalMods;
+    expect(globMods.length).toBeGreaterThan(0);
+    if (globMods) {
+      expect(globMods[0].modValue.primaryValue).toBe("Carbamidomethyl");
+    }
   });
 
   test('ambiguous modifications', () => {
