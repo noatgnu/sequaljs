@@ -1,6 +1,6 @@
 {
   "name": "sequaljs",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "JavaScript/TypeScript library for parsing and manipulating ProForma peptide sequence notation",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -266,13 +266,14 @@ describe('ProForma', () => {
   test('glycan notation', () => {
     const proformaStrings = [
       "PEPT[Glycan:HexNAc]IDE",
-      "PEPT[Glycan:HexNAc(1)Hex(1)]IDE"
+      "PEPT[Glycan:HexNAc(1)Hex(1)]IDE",
     ];
 
     for (const proforma of proformaStrings) {
       const seq = Sequence.fromProforma(proforma);
       expect(seq.toStrippedString()).toBe("PEPTIDE");
       expect(seq.seq[3].mods[0].source).toBe("Glycan");
+      expect(seq.seq[3].mods[0].modValue.pipeValues[0].isValidGlycan).toBe(true);
       expect(seq.toProforma()).toBe(proforma);
     }
   });
@@ -399,6 +400,19 @@ describe('ProForma', () => {
 
     expect(seq2.toProforma()).toBe(proforma2);
   });
+
+  test('gno notation', () => {
+    // Test GNO notation with observed mass
+    const proforma = "NEEYN[GNO:G59626AS]K";
+    const seq = Sequence.fromProforma(proforma);
+
+    expect(seq.toStrippedString()).toBe("NEEYNK");
+    expect(seq.seq[4].mods[0].modValue.primaryValue).toBe("G59626AS");
+    expect(seq.seq[4].mods[0].source).toBe("GNO");
+    expect(seq.seq[4].mods[0].modValue.pipeValues[0].isValidGlycan).toBe(true);
+
+    expect(seq.toProforma()).toBe(proforma);
+  })
 
   test('joint representation', () => {
     // Basic case with interpretation and mass

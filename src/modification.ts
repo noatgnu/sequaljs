@@ -367,8 +367,10 @@ export class ModificationValue {
     const sortedMonos = [...monosaccharides].sort((a, b) => b.length - a.length);
 
     const escapedMonos = sortedMonos.map(m => m.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'));
-    const monoPatternString = "^(" + escapedMonos.join("|") + ")(\\d+)?";
+    const monoPatternString = "(" + escapedMonos.join("|") + ")(\\((\\d+)\\))?";
+
     const monoPattern = new RegExp(monoPatternString);
+
     let i = 0;
     while (i < glycanClean.length) {
       const match = glycanClean.substring(i).match(monoPattern);
