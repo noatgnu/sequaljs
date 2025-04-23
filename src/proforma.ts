@@ -14,6 +14,8 @@ export class SequenceAmbiguity {
   }
 }
 
+
+
 export class ProFormaParser {
   static readonly MASS_SHIFT_PATTERN = /^[+-]\d+(\.\d+)?$/;
   //static readonly TERMINAL_PATTERN = /^(\[([^\]]+)\])+-(.*)-(\[([^\]]+)\])+$/;
@@ -151,96 +153,94 @@ export class ProFormaParser {
 
     proformaStr = proformaStr.substring(i);
 
-    if (proformaStr.includes('-')) {
-      // Find the first dash that's outside of brackets
-      let dashIndex = -1;
-      let bracketDepth = 0;
+    if (proformaStr.startsWith('[')) {
+      let bracketLevel = 0;
+      let terminatorPos = -1;
+
+      // Find the terminal hyphen that's outside all brackets
       for (let i = 0; i < proformaStr.length; i++) {
-        if (proformaStr[i] === '[') bracketDepth++;
-        else if (proformaStr[i] === ']') bracketDepth--;
-        else if (proformaStr[i] === '-' && bracketDepth === 0) {
-          dashIndex = i;
+        if (proformaStr[i] === '[') bracketLevel++;
+        else if (proformaStr[i] === ']') bracketLevel--;
+        else if (proformaStr[i] === '-' && bracketLevel === 0) {
+          terminatorPos = i;
           break;
         }
       }
 
-      if (dashIndex !== -1 && proformaStr.startsWith('[')) {
-        // Extract N-terminal part
-        let nTermPart = proformaStr.substring(0, dashIndex);
-        proformaStr = proformaStr.substring(dashIndex + 1);
+      if (terminatorPos !== -1) {
+        const nTerminalPart = proformaStr.substring(0, terminatorPos);
+        proformaStr = proformaStr.substring(terminatorPos + 1);
 
         // Parse N-terminal modifications
-        let i = 0;
-        while (i < nTermPart.length) {
-          if (nTermPart[i] === '[') {
-            let bracketCount = 1;
-            let j = i + 1;
+        let currentPos = 0;
+        while (currentPos < nTerminalPart.length) {
+          if (nTerminalPart[currentPos] === '[') {
+            let bracketDepth = 1;
+            let endPos = currentPos + 1;
 
-            while (j < nTermPart.length && bracketCount > 0) {
-              if (nTermPart[j] === '[') bracketCount++;
-              if (nTermPart[j] === ']') bracketCount--;
-              j++;
+            // Find matching closing bracket
+            while (endPos < nTerminalPart.length && bracketDepth > 0) {
+              if (nTerminalPart[endPos] === '[') bracketDepth++;
+              if (nTerminalPart[endPos] === ']') bracketDepth--;
+              endPos++;
             }
 
-            if (bracketCount === 0) {
-              const modStr = nTermPart.substring(i + 1, j - 1);
-              const nTermMod = ProFormaParser._createModification(
-                  modStr,
-                  { isTerminal: true }
-              );
+            if (bracketDepth === 0) {
+              const modString = nTerminalPart.substring(currentPos + 1, endPos - 1);
+              const nTermMod = ProFormaParser._createModification(modString, { isTerminal: true });
               getModsAtPosition(-1).push(nTermMod);
             }
 
-            i = j;
+            currentPos = endPos;
           } else {
-            i++;
+            currentPos++;
           }
         }
       }
+    }
 
-      // Handle C-terminal modifications
-      if (proformaStr.includes('-')) {
-        // Find the last dash that's outside of brackets
-        let dashIndex = -1;
-        let bracketDepth = 0;
-        for (let i = proformaStr.length - 1; i >= 0; i--) {
-          if (proformaStr[i] === ']') bracketDepth++;
-          else if (proformaStr[i] === '[') bracketDepth--;
-          else if (proformaStr[i] === '-' && bracketDepth === 0) {
-            dashIndex = i;
-            break;
-          }
+    if (proformaStr.includes('-')) {
+      let bracketLevel = 0;
+      let terminatorPos = -1;
+
+      // Find the terminal hyphen that's outside all brackets, scanning from right to left
+      for (let i = proformaStr.length - 1; i >= 0; i--) {
+        // When scanning backward, we need to check closing bracket first, then opening
+        if (proformaStr[i] === ']') bracketLevel++;
+        else if (proformaStr[i] === '[') bracketLevel--;
+        else if (proformaStr[i] === '-' && bracketLevel === 0) {
+          terminatorPos = i;
+          break;
         }
+      }
 
-        if (dashIndex !== -1 && dashIndex + 1 < proformaStr.length && proformaStr[dashIndex+1] === "[") {
-          let cTermPart = proformaStr.substring(dashIndex + 1);
-          proformaStr = proformaStr.substring(0, dashIndex);
+      if (terminatorPos !== -1) {
+        const cTerminalPart = proformaStr.substring(terminatorPos + 1);
+        proformaStr = proformaStr.substring(0, terminatorPos);
 
-          let i = 0;
-          while (i < cTermPart.length) {
-            if (cTermPart[i] === '[') {
-              let bracketCount = 1;
-              let j = i + 1;
+        // Parse C-terminal modifications
+        let currentPos = 0;
+        while (currentPos < cTerminalPart.length) {
+          if (cTerminalPart[currentPos] === '[') {
+            let bracketDepth = 1;
+            let endPos = currentPos + 1;
 
-              while (j < cTermPart.length && bracketCount > 0) {
-                if (cTermPart[j] === '[') bracketCount++;
-                if (cTermPart[j] === ']') bracketCount--;
-                j++;
-              }
-
-              if (bracketCount === 0) {
-                const modStr = cTermPart.substring(i + 1, j - 1);
-                const cTermMod = ProFormaParser._createModification(
-                    modStr,
-                    { isTerminal: true }
-                );
-                getModsAtPosition(-2).push(cTermMod);
-              }
-
-              i = j;
-            } else {
-              i++;
+            // Find matching closing bracket
+            while (endPos < cTerminalPart.length && bracketDepth > 0) {
+              if (cTerminalPart[endPos] === '[') bracketDepth++;
+              if (cTerminalPart[endPos] === ']') bracketDepth--;
+              endPos++;
             }
+
+            if (bracketDepth === 0) {
+              const modString = cTerminalPart.substring(currentPos + 1, endPos - 1);
+              const cTermMod = ProFormaParser._createModification(modString, { isTerminal: true });
+              getModsAtPosition(-2).push(cTermMod);
+            }
+
+            currentPos = endPos;
+          } else {
+            currentPos++;
           }
         }
       }

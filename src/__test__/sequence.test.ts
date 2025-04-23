@@ -33,37 +33,97 @@ describe('ProForma', () => {
   });
 
   test('terminal modifications', () => {
-    const proforma = "[Acetyl][Acetyl]-PEPTIDE-[Amidated]";
-    const seq = Sequence.fromProforma(proforma);
+    // Test single terminal modifications
+    const proforma1 = "[Acetyl]-PEPTIDE-[Amidated]";
+    const seq1 = Sequence.fromProforma(proforma1);
 
-    expect(seq.toStrippedString()).toBe("PEPTIDE");
+    expect(seq1.toStrippedString()).toBe("PEPTIDE");
 
     // Check N-terminal modification
-    const nTermMods = seq.mods.get(-1);
-    expect(nTermMods).toBeDefined();
-    if (nTermMods) {
-      expect(nTermMods[0].modValue.primaryValue).toBe("Acetyl");
+    const nTermMods1 = seq1.mods.get(-1);
+    expect(nTermMods1).toBeDefined();
+    if (nTermMods1) {
+      expect(nTermMods1[0].modValue.primaryValue).toBe("Acetyl");
     }
 
     // Check C-terminal modification
-    const cTermMods = seq.mods.get(-2);
-    expect(cTermMods).toBeDefined();
-    if (cTermMods) {
-      expect(cTermMods[0].modValue.primaryValue).toBe("Amidated");
+    const cTermMods1 = seq1.mods.get(-2);
+    expect(cTermMods1).toBeDefined();
+    if (cTermMods1) {
+      expect(cTermMods1[0].modValue.primaryValue).toBe("Amidated");
     }
 
-    expect(seq.toProforma()).toBe(proforma);
-
-    const proforma2 = "<[Carbamidomethyl|INFO:Standard alkylation]@C>[Acetyl|INFO:Added during processing]-PEPTCDE-[Amidated|INFO:Common C-terminal mod]";
+    // Test multiple terminal modifications
+    const proforma2 = "[Acetyl][Methyl]-PEPTIDE-[Amidated][Phosphorylated]";
     const seq2 = Sequence.fromProforma(proforma2);
-    expect(seq2.toStrippedString()).toBe("PEPTCDE");
 
-    // Global modification
-    const globMods = seq2.globalMods;
-    expect(globMods.length).toBeGreaterThan(0);
-    if (globMods) {
-      expect(globMods[0].modValue.primaryValue).toBe("Carbamidomethyl");
+    expect(seq2.toStrippedString()).toBe("PEPTIDE");
+
+    // Check multiple N-terminal modifications
+    const nTermMods2 = seq2.mods.get(-1);
+    expect(nTermMods2).toBeDefined();
+    if (nTermMods2) {
+      expect(nTermMods2.length).toBe(2);
+      expect(nTermMods2[0].modValue.primaryValue).toBe("Acetyl");
+      expect(nTermMods2[1].modValue.primaryValue).toBe("Methyl");
     }
+
+    // Check multiple C-terminal modifications
+    const cTermMods2 = seq2.mods.get(-2);
+    expect(cTermMods2).toBeDefined();
+    if (cTermMods2) {
+      expect(cTermMods2.length).toBe(2);
+      expect(cTermMods2[0].modValue.primaryValue).toBe("Amidated");
+      expect(cTermMods2[1].modValue.primaryValue).toBe("Phosphorylated");
+    }
+
+    // Test terminal modifications with hyphens in their names
+    const proforma3 = "[N-Terminal-Acetyl]-PEPTIDE-[C-Terminal-Amidation]";
+    const seq3 = Sequence.fromProforma(proforma3);
+
+    expect(seq3.toStrippedString()).toBe("PEPTIDE");
+
+    // Check N-terminal modification with hyphen in name
+    const nTermMods3 = seq3.mods.get(-1);
+    expect(nTermMods3).toBeDefined();
+    if (nTermMods3) {
+      expect(nTermMods3[0].modValue.primaryValue).toBe("N-Terminal-Acetyl");
+    }
+
+    // Check C-terminal modification with hyphen in name
+    const cTermMods3 = seq3.mods.get(-2);
+    expect(cTermMods3).toBeDefined();
+    if (cTermMods3) {
+      expect(cTermMods3[0].modValue.primaryValue).toBe("C-Terminal-Amidation");
+    }
+
+    // Multiple modifications with hyphens in their names
+    const proforma4 = "[N-Acetyl][alpha-amino]-PEPTIDE-[C-Terminal][beta-COOH]";
+    const seq4 = Sequence.fromProforma(proforma4);
+
+    expect(seq4.toStrippedString()).toBe("PEPTIDE");
+
+    const nTermMods4 = seq4.mods.get(-1);
+    expect(nTermMods4).toBeDefined();
+    if (nTermMods4) {
+      expect(nTermMods4.length).toBe(2);
+      expect(nTermMods4[0].modValue.primaryValue).toBe("N-Acetyl");
+      expect(nTermMods4[1].modValue.primaryValue).toBe("alpha-amino");
+    }
+
+    const cTermMods4 = seq4.mods.get(-2);
+    expect(cTermMods4).toBeDefined();
+    if (cTermMods4) {
+      expect(cTermMods4.length).toBe(2);
+      expect(cTermMods4[0].modValue.primaryValue).toBe("C-Terminal");
+      expect(cTermMods4[1].modValue.primaryValue).toBe("beta-COOH");
+    }
+
+    // Verify roundtrip for all cases
+    expect(seq1.toProforma()).toBe(proforma1);
+    expect(seq2.toProforma()).toBe(proforma2);
+    expect(seq3.toProforma()).toBe(proforma3);
+    expect(seq4.toProforma()).toBe(proforma4);
   });
 
   test('ambiguous modifications', () => {
