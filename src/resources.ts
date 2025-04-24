@@ -21,11 +21,12 @@ export const AA_mass: {[key: string]: number} = {
   "P": 97.052764,
   "S": 87.032028,
   "T": 101.047679,
-  "U": 150.95363,
+  "U": 255.15829,
   "W": 186.079313,
   "Y": 163.06332,
   "V": 99.068414,
   "X": 0,
+  "O": 150.03794,
 }
 
 export const glycan_block_dict: {[key: string]: number} = {

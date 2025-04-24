@@ -28,7 +28,7 @@ export class ProFormaParser {
   //static readonly UNKNOWN_POSITION_PATTERN = /(\[([^\]]+)\])(\^(\d+))?(\?)/;
 
 
-  static parse(proformaStr: string): [string, Record<number, Modification[]>, GlobalModification[], SequenceAmbiguity[]] {
+  static parse(proformaStr: string): [string, Record<number, Modification[]>, GlobalModification[], SequenceAmbiguity[], [number | null, string | null]] {
     let baseSequence = "";
     const modifications: Record<number, Modification[]> = {};
     const globalMods: GlobalModification[] = [];
@@ -198,6 +198,11 @@ export class ProFormaParser {
         }
       }
     }
+
+    const chargeInfo = ProFormaParser.parseChargeInfo(proformaStr);
+
+    proformaStr = chargeInfo[0]
+
 
     if (proformaStr.includes('-')) {
       let bracketLevel = 0;
@@ -408,7 +413,7 @@ export class ProFormaParser {
       }
     }
 
-    return [baseSequence, modifications, globalMods, sequenceAmbiguities];
+    return [baseSequence, modifications, globalMods, sequenceAmbiguities, [chargeInfo[1], chargeInfo[2]]];
   }
 
   static _createModification(
@@ -629,5 +634,91 @@ export class ProFormaParser {
       undefined,
       modValue
     );
+  }
+
+  static parseChargeInfo(proformaStr: string): [string, number | null, string | null] {
+    if (!proformaStr.includes('/')) {
+      return [proformaStr, null, null];
+    }
+
+    let chargePos = -1;
+    let bracketLevel = 0;
+
+    // Find the charge separator (/) that's not inside brackets
+    for (let i = 0; i < proformaStr.length; i++) {
+      const char = proformaStr[i];
+      if (char === '[' || char === '(') {
+        bracketLevel++;
+      } else if (char === ']' || char === ')') {
+        bracketLevel--;
+      } else if (char === '/' && bracketLevel === 0) {
+        chargePos = i;
+        break;
+      }
+    }
+
+    if (chargePos === -1) {
+      return [proformaStr, null, null];
+    }
+
+    const beforeCharge = proformaStr.substring(0, chargePos);
+    const afterCharge = proformaStr.substring(chargePos + 1);
+
+    let i = 0;
+    let sign = 1;
+
+    // Handle negative sign
+    if (i < afterCharge.length && afterCharge[i] === '-') {
+      sign = -1;
+      i++;
+    }
+
+    // Parse digits
+    const startDigit = i;
+    while (i < afterCharge.length && /\d/.test(afterCharge[i])) {
+      i++;
+    }
+
+    if (startDigit === i) { // No digits found
+      return [proformaStr, null, null];
+    }
+
+    const chargeValue = parseInt(afterCharge.substring(startDigit, i)) * sign;
+
+    // Check for ionic species in square brackets
+    let remaining = afterCharge.substring(i);
+    let ionicSpecies: string | null = null;
+
+    if (remaining && remaining[0] === '[') {
+      // Find the matching closing bracket
+      let bracketLevel = 1;
+      let endPos = 0;
+
+      for (let j = 1; j < remaining.length; j++) {
+        if (remaining[j] === '[') {
+          bracketLevel++;
+        } else if (remaining[j] === ']') {
+          bracketLevel--;
+        }
+
+        if (bracketLevel === 0) {
+          endPos = j;
+          break;
+        }
+      }
+
+      if (endPos > 0) {
+        ionicSpecies = remaining.substring(1, endPos);
+        remaining = remaining.substring(endPos + 1);
+      }
+    }
+
+    // Reconstruct the string without charge information
+    let resultStr = beforeCharge;
+    if (remaining) {
+      resultStr += remaining;
+    }
+
+    return [resultStr, chargeValue, ionicSpecies];
   }
 }

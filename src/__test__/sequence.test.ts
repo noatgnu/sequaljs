@@ -1,5 +1,46 @@
-import { Sequence } from '../sequence';
+import {Sequence, splitChimericProforma} from '../sequence';
 import { Modification } from '../modification';
+
+describe('ChimericProforma', () => {
+  test('split chimeric proforma basic', () => {
+    const inputStr = 'EMEVEESPEK/2+ELVISLIVER/3';
+    const result = splitChimericProforma(inputStr);
+    expect(result).toEqual(['EMEVEESPEK/2', 'ELVISLIVER/3']);
+  });
+
+  test('split chimeric proforma with modifications', () => {
+    const inputStr = 'S[+79.966]EQMENPEK/2+ELVISLIVER/3';
+    const result = splitChimericProforma(inputStr);
+    expect(result).toEqual(['S[+79.966]EQMENPEK/2', 'ELVISLIVER/3']);
+  });
+
+  test('split chimeric proforma ionic species', () => {
+    const inputStr = 'PEPTIDE/1[+Na+]+OTHERSEQ/2';
+    const result = splitChimericProforma(inputStr);
+    expect(result).toEqual(['PEPTIDE/1[+Na+]', 'OTHERSEQ/2']);
+  });
+
+  test('split chimeric proforma terminal mods', () => {
+    const inputStr = '[Acetyl]-PEPTIDE-[Amidated]/1+OTHERSEQ/2';
+    const result = splitChimericProforma(inputStr);
+    expect(result).toEqual(['[Acetyl]-PEPTIDE-[Amidated]/1', 'OTHERSEQ/2']);
+  });
+
+  test('split chimeric proforma complex brackets', () => {
+    const inputStr = 'PEPT[+Phospho (something [special])]-[Amidated]/2+OTHERSEQ/3';
+    const result = splitChimericProforma(inputStr);
+    expect(result).toEqual([
+      'PEPT[+Phospho (something [special])]-[Amidated]/2',
+      'OTHERSEQ/3'
+    ]);
+  });
+
+  test('split chimeric proforma multiple peptidoforms', () => {
+    const inputStr = 'SEQ1/1+SEQ2/2+SEQ3/3';
+    const result = splitChimericProforma(inputStr);
+    expect(result).toEqual(['SEQ1/1', 'SEQ2/2', 'SEQ3/3']);
+  });
+});
 
 describe('ProForma', () => {
   test('basic peptide with modification', () => {
@@ -576,5 +617,137 @@ describe('ProForma', () => {
     expect(seq2.toStrippedString()).toBe("PEPTXIDE");
     expect(seq2.seq[4].mods[0].modValue.primaryValue).toBe("-10.0");
     expect(seq2.toProforma()).toBe("PEPTX[-10]IDE");
+  });
+
+  test('from proforma basic chimeric', () => {
+    const inputStr = 'PEPTIDE/2+ANOTHER/3';
+    const seq = Sequence.fromProforma(inputStr);
+
+    // Check basic properties
+    expect(seq.isChimeric).toBe(true);
+    expect(seq.peptidoforms.length).toBe(2);
+
+    // Check first peptidoform
+    expect(seq.toStrippedString()).toBe('PEPTIDE');
+    expect(seq.charge).toBe(2);
+
+    // Check second peptidoform
+    expect(seq.peptidoforms[1].toStrippedString()).toBe('ANOTHER');
+    expect(seq.peptidoforms[1].charge).toBe(3);
+  });
+
+  test('from proforma complex chimeric', () => {
+    const inputStr = '[Acetyl]-PEP[+79.966]TIDE-[Amidated]/2[+Na+]+S[Phospho]EQ/3';
+    const seq = Sequence.fromProforma(inputStr);
+
+    // Check chimeric properties
+    expect(seq.isChimeric).toBe(true);
+    expect(seq.peptidoforms.length).toBe(2);
+
+    // First peptidoform specifics
+    expect(seq.toStrippedString()).toBe('PEPTIDE');
+    expect(seq.charge).toBe(2);
+    expect(seq.ionicSpecies).toBe('+Na+');
+    const nTermMods = seq.mods.get(-1);
+    if (nTermMods) {
+      expect(nTermMods[0].modValue.primaryValue).toBe('Acetyl');
+    }
+    const cTermMods = seq.mods.get(-2);
+    if (cTermMods) {
+      expect(cTermMods[0].modValue.primaryValue).toBe('Amidated');
+    }
+
+    // Second peptidoform specifics
+    const second = seq.peptidoforms[1];
+    expect(second.toStrippedString()).toBe('SEQ');
+    expect(second.charge).toBe(3);
+    expect(second.seq[0].mods.length).toBeGreaterThan(0); // S has phospho mod
+  });
+
+  test('to proforma chimeric', () => {
+    // Test round-trip conversion
+    const inputStr = 'PEPTIDE/2+ANOTHER/3';
+    const seq = Sequence.fromProforma(inputStr);
+
+    // Generate ProForma string and parse again
+    const proforma = seq.toProforma();
+    const parsedAgain = Sequence.fromProforma(proforma);
+
+    // Check key properties match
+    expect(parsedAgain.isChimeric).toBe(true);
+    expect(parsedAgain.peptidoforms.length).toBe(2);
+    expect(parsedAgain.toStrippedString()).toBe('PEPTIDE');
+    expect(parsedAgain.charge).toBe(2);
+    expect(parsedAgain.peptidoforms[1].toStrippedString()).toBe('ANOTHER');
+    expect(parsedAgain.peptidoforms[1].charge).toBe(3);
+  });
+
+  test('multi chain with chimeric', () => {
+    const inputStr = 'PEP/1+QRS/2//QWR/3+AAC/4';
+    const seq = Sequence.fromProforma(inputStr);
+
+    // Check multi-chain properties
+    expect(seq.isMultiChain).toBe(true);
+    expect(seq.chains.length).toBe(2);
+
+    // Check first chain is chimeric
+    expect(seq.chains[0].isChimeric).toBe(true);
+    expect(seq.chains[0].peptidoforms.length).toBe(2);
+    expect(seq.chains[0].toStrippedString()).toBe('PEP');
+    expect(seq.chains[0].peptidoforms[1].toStrippedString()).toBe('QRS');
+
+    // Check second chain is chimeric
+    expect(seq.chains[1].isChimeric).toBe(true);
+    expect(seq.chains[1].peptidoforms.length).toBe(2);
+    expect(seq.chains[1].toStrippedString()).toBe('QWR');
+    expect(seq.chains[1].peptidoforms[1].toStrippedString()).toBe('AAC');
+  });
+
+  test('charge representation', () => {
+    // Test basic positive charge
+    const proforma1 = 'EMEVEESPEK/2';
+    const seq1 = Sequence.fromProforma(proforma1);
+
+    expect(seq1.toStrippedString()).toBe('EMEVEESPEK');
+    expect(seq1.charge).toBe(2);
+    expect(seq1.ionicSpecies).toBeNull();
+    expect(seq1.toProforma()).toBe(proforma1);
+
+    // Test negative charge
+    const proforma2 = 'EMEVEESPEK/-2';
+    const seq2 = Sequence.fromProforma(proforma2);
+
+    expect(seq2.toStrippedString()).toBe('EMEVEESPEK');
+    expect(seq2.charge).toBe(-2);
+    expect(seq2.ionicSpecies).toBeNull();
+    expect(seq2.toProforma()).toBe(proforma2);
+
+    // Test with ionic species
+    const proforma3 = 'EMEVEESPEK/2[+2Na+,+H+]';
+    const seq3 = Sequence.fromProforma(proforma3);
+
+    expect(seq3.toStrippedString()).toBe('EMEVEESPEK');
+    expect(seq3.charge).toBe(2);
+    expect(seq3.ionicSpecies).toBe('+2Na+,+H+');
+    expect(seq3.toProforma()).toBe(proforma3);
+
+    // Test with modifications and charge
+    const proforma4 = 'EM[U:Oxidation]EVEES[U:Phospho]PEK/3';
+    const seq4 = Sequence.fromProforma(proforma4);
+
+    expect(seq4.toStrippedString()).toBe('EMEVEESPEK');
+    expect(seq4.charge).toBe(3);
+    expect(seq4.seq[1].mods[0].value).toBe('Oxidation');
+    expect(seq4.seq[6].mods[0].value).toBe('Phospho');
+    expect(seq4.toProforma()).toBe(proforma4);
+
+    // Test with complex structure
+    const proforma5 = '<[Carbamidomethyl]@C>[Acetyl]-PEPTCDE-[Amidated]/1[+Na+]';
+    const seq5 = Sequence.fromProforma(proforma5);
+
+    expect(seq5.toStrippedString()).toBe('PEPTCDE');
+    expect(seq5.charge).toBe(1);
+    expect(seq5.ionicSpecies).toBe('+Na+');
+    expect(seq5.toProforma()).toBe(proforma5);
   });
 });

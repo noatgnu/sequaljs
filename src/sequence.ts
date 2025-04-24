@@ -104,6 +104,10 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   globalMods: GlobalModification[];
   sequenceAmbiguities: SequenceAmbiguity[];
   seqLength: number;
+  charge: number | null;
+  ionicSpecies: string | null;
+  isChimeric: boolean = false;
+  peptidoforms: Sequence[];
   private currentIterCount: number = 0;
 
   /**
@@ -118,7 +122,9 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
     modPosition: 'left' | 'right' = 'right',
     chains: Sequence[] = [],
     globalMods: GlobalModification[] = [],
-    sequenceAmbiguities: SequenceAmbiguity[] = []
+    sequenceAmbiguities: SequenceAmbiguity[] = [],
+    charge: number | null = null,
+    ionicSpecies: string | null = null
   ) {
     this.encoder = encoder;
     this.parserIgnore = parserIgnore || [];
@@ -128,6 +134,9 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
     this.mods = new Map();
     this.globalMods = globalMods || [];
     this.sequenceAmbiguities = sequenceAmbiguities || [];
+    this.charge = charge
+    this.ionicSpecies = ionicSpecies;
+    this.peptidoforms = [];
 
     if (seq instanceof Sequence) {
       // Copy attributes from existing sequence
@@ -181,49 +190,73 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
       }
 
       return mainSeq;
-    } else {
-      const [
-        baseSequence,
-        modifications,
-        globalMods,
-        sequenceAmbiquities
-      ] = ProFormaParser.parse(proformaStr);
+    }
 
-      const seq = new Sequence(
-        baseSequence,
-        AminoAcid as any,
-        {},
-        true,
-        [],
-        'right',
-        [],
-        globalMods,
-        sequenceAmbiquities
-      );
-
-      for (const [posStr, mods] of Object.entries(modifications)) {
-        const pos = parseInt(posStr);
-        for (const mod of mods) {
-          if (pos === -1) { // N-terminal
-            if (!seq.mods.has(-1)) seq.mods.set(-1, []);
-            seq.mods.get(-1)?.push(mod);
-          } else if (pos === -2) { // C-terminal
-            if (!seq.mods.has(-2)) seq.mods.set(-2, []);
-            seq.mods.get(-2)?.push(mod);
-          } else if (pos === -3) {
-            if (!seq.mods.has(-3)) seq.mods.set(-3, []);
-            seq.mods.get(-3)?.push(mod);
-          } else if (pos === -4) {
-            if (!seq.mods.has(-4)) seq.mods.set(-4, []);
-            seq.mods.get(-4)?.push(mod);
-          } else {
-            seq.seq[pos].addModification(mod);
-          }
-        }
+    const peptidoforms = splitChimericProforma(proformaStr);
+    if (peptidoforms.length > 1) {
+      const mainSeq = Sequence.fromProforma(peptidoforms[0]);
+      mainSeq.isChimeric = true;
+      mainSeq.peptidoforms = [mainSeq];
+      for (const pep of peptidoforms.slice(1)) {
+        const peptidoform = this.fromProforma(pep);
+        peptidoform.isChimeric = true;
+        mainSeq.peptidoforms.push(peptidoform);
+      }
+      for (const chainStr of peptidoforms.slice(1)) {
+        const chain = Sequence.fromProforma(chainStr);
+        mainSeq.chains.push(chain);
       }
 
-      return seq;
+      return mainSeq;
     }
+
+    const [
+      baseSequence,
+      modifications,
+      globalMods,
+      sequenceAmbiquities,
+      chargeInfo
+    ] = ProFormaParser.parse(proformaStr);
+    const charge = chargeInfo ? chargeInfo[0] : null;
+    const species = chargeInfo ? chargeInfo[1] : null;
+    const seq = new Sequence(
+      baseSequence,
+      AminoAcid as any,
+      {},
+      true,
+      [],
+      'right',
+      [],
+      globalMods,
+      sequenceAmbiquities,
+      charge,
+      species
+    );
+    if (charge) {
+      seq.isChimeric = true;
+    }
+    for (const [posStr, mods] of Object.entries(modifications)) {
+      const pos = parseInt(posStr);
+      for (const mod of mods) {
+        if (pos === -1) {
+          if (!seq.mods.has(-1)) seq.mods.set(-1, []);
+          seq.mods.get(-1)?.push(mod);
+        } else if (pos === -2) {
+          if (!seq.mods.has(-2)) seq.mods.set(-2, []);
+          seq.mods.get(-2)?.push(mod);
+        } else if (pos === -3) {
+          if (!seq.mods.has(-3)) seq.mods.set(-3, []);
+          seq.mods.get(-3)?.push(mod);
+        } else if (pos === -4) {
+          if (!seq.mods.has(-4)) seq.mods.set(-4, []);
+          seq.mods.get(-4)?.push(mod);
+        } else {
+          seq.seq[pos].addModification(mod);
+        }
+      }
+    }
+
+    return seq;
   }
 
   /**
@@ -418,6 +451,11 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
     if (this.isMultiChain) {
       return this.chains.map(chain => this._chainToProforma(chain)).join("//");
     } else {
+      if (this.isChimeric) {
+        if (this.peptidoforms.length > 0) {
+          return this.peptidoforms.map(pep => this._chainToProforma(pep)).join("+");
+        }
+      }
       return this._chainToProforma(this as unknown as Sequence<AminoAcid>)
     }
   }
@@ -588,6 +626,15 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
       if (nModStr) {
         result += "-" + nModStr;
       }
+    }
+    if (chain.isChimeric) {
+      if (chain.charge) {
+        result += `/${chain.charge}`;
+        if (chain.ionicSpecies) {
+          result += `[${chain.ionicSpecies}]`;
+        }
+      }
+
     }
 
     return result;
@@ -1155,4 +1202,31 @@ export class ModdedSequenceGenerator {
     return Object.assign(Object.create(Object.getPrototypeOf(mod)),
       JSON.parse(JSON.stringify(mod)));
   }
+}
+
+export function splitChimericProforma(proformaStr: string): string[] {
+  const parts: string[] = [];
+  let currentPartStart: number = 0;
+  let bracketLevel: number = 0;
+
+  for (let i = 0; i < proformaStr.length; i++) {
+    const char = proformaStr[i];
+
+    if (char === '[' || char === '{' || char === '(') {
+      bracketLevel++;
+    } else if (char === ']' || char === '}' || char === ')') {
+      // Ensure bracket level doesn't go below zero due to malformed strings
+      bracketLevel = Math.max(0, bracketLevel - 1);
+    } else if (char === '+' && bracketLevel === 0) {
+      // Found a separator '+' outside of any brackets
+      parts.push(proformaStr.substring(currentPartStart, i).trim());
+      currentPartStart = i + 1;
+    }
+  }
+
+  // Add the last part of the string (or the only part if no '+' was found)
+  parts.push(proformaStr.substring(currentPartStart).trim());
+
+  // Filter out any empty strings
+  return parts.filter(part => part.length > 0);
 }
