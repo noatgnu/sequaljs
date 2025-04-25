@@ -255,6 +255,7 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
         }
       }
     }
+    seq.peptidoforms = [seq]
 
     return seq;
   }
