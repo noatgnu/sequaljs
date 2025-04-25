@@ -628,14 +628,11 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
         result += "-" + nModStr;
       }
     }
-    if (chain.isChimeric) {
-      if (chain.charge) {
-        result += `/${chain.charge}`;
-        if (chain.ionicSpecies) {
-          result += `[${chain.ionicSpecies}]`;
-        }
+    if (chain.charge) {
+      result += `/${chain.charge}`;
+      if (chain.ionicSpecies) {
+        result += `[${chain.ionicSpecies}]`;
       }
-
     }
 
     return result;
