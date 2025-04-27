@@ -1,6 +1,7 @@
-# sequaljs/dist/sequence
+# SequalJS
+----
 
-sequaljs/dist/sequence is a JavaScript/TypeScript library for parsing and manipulating ProForma peptide sequence notation. It allows handling protein and peptide sequences with modifications, useful for proteomics research, mass spectrometry data analysis, and bioinformatics applications.
+SequalJS is a JavaScript/TypeScript library for parsing and manipulating ProForma peptide sequence notation. It allows handling protein and peptide sequences with modifications, useful for proteomics research, mass spectrometry data analysis, and bioinformatics applications.
 
 ## Features
 
@@ -24,7 +25,7 @@ sequaljs/dist/sequence is a JavaScript/TypeScript library for parsing and manipu
 ## Installation
 
 ```bash
-npm install sequaljs/dist/sequence
+npm install sequaljs
 ```
 
 ## Usage
@@ -196,11 +197,11 @@ console.log(complexChimeric.peptidoforms[1].seq[0].mods[0].modValue.primaryValue
 ## API Reference
 
 - `Sequence.fromProforma(string)`: Parse a ProForma string into a Sequence object
-- `sequence.toProforma()`: Convert a Sequence object back to a ProForma string
-- `sequence.toStrippedString()`: Get the plain amino acid sequence without modifications
-- `sequence.seq`: Access the individual residues with their modifications
-- `sequence.mods`: Access modifications by position, including terminal modifications
-- `sequence.globalMods`: Access global modifications
+- `Sequence.toProforma()`: Convert a Sequence object back to a ProForma string
+- `Sequence.toStrippedString()`: Get the plain amino acid sequence without modifications
+- `Sequence.seq`: Access the individual residues with their modifications
+- `Sequence.mods`: Access modifications by position, including terminal modifications
+- `Sequence.globalMods`: Access global modifications
 - `sequence.sequenceAmbiguities`: Access sequence ambiguity information
 
 ## License
