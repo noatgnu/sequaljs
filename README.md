@@ -1,6 +1,6 @@
-# SequalJS
+# sequaljs/dist/sequence
 
-SequalJS is a JavaScript/TypeScript library for parsing and manipulating ProForma peptide sequence notation. It allows handling protein and peptide sequences with modifications, useful for proteomics research, mass spectrometry data analysis, and bioinformatics applications.
+sequaljs/dist/sequence is a JavaScript/TypeScript library for parsing and manipulating ProForma peptide sequence notation. It allows handling protein and peptide sequences with modifications, useful for proteomics research, mass spectrometry data analysis, and bioinformatics applications.
 
 ## Features
 
@@ -24,7 +24,7 @@ SequalJS is a JavaScript/TypeScript library for parsing and manipulating ProForm
 ## Installation
 
 ```bash
-npm install sequaljs
+npm install sequaljs/dist/sequence
 ```
 
 ## Usage
@@ -32,7 +32,7 @@ npm install sequaljs
 ### Basic Parsing
 
 ```typescript
-import { Sequence } from 'sequaljs';
+import { Sequence } from 'sequaljs/dist/sequence';
 
 // Parse a simple peptide with modification
 const seq = Sequence.fromProforma('ELVIS[Phospho]K');
@@ -46,7 +46,7 @@ console.log(seq.toProforma()); // "ELVIS[Phospho]K"
 ### Terminal Modifications
 
 ```typescript
-import { Sequence } from 'sequaljs';
+import { Sequence } from 'sequaljs/dist/sequence';
 
 // N-terminal and C-terminal modifications
 const seq = Sequence.fromProforma('[Acetyl]-PEPTIDE-[Amidated]');
@@ -67,7 +67,7 @@ if (cTermMod) {
 ### Global Modifications
 
 ```typescript
-import { Sequence } from 'sequaljs';
+import { Sequence } from 'sequaljs/dist/sequence';
 
 // Global fixed modification
 const seq = Sequence.fromProforma('<[Carbamidomethyl]@C>PEPTCDE');
@@ -78,7 +78,7 @@ console.log(seq.globalMods[0].targetResidues); // ["C"]
 ### Working with INFO Tags
 
 ```typescript
-import { Sequence } from 'sequaljs';
+import { Sequence } from 'sequaljs/dist/sequence';
 
 // Parse sequence with INFO tag
 const seq = Sequence.fromProforma('ELVIS[Phospho|INFO:newly discovered]K');
@@ -95,7 +95,7 @@ console.log(seq2.seq[4].mods[0].infoTags); // ["newly discovered", "Created on 2
 ### Joint Representation
 
 ```typescript
-import { Sequence } from 'sequaljs';
+import { Sequence } from 'sequaljs/dist/sequence';
 
 // Parse sequence with joint interpretation and mass
 const seq = Sequence.fromProforma('ELVIS[U:Phospho|+79.966331]K');
@@ -114,7 +114,7 @@ console.log(mod2.modValue.pipeValues[1].observedMass); // 79.978
 ### Crosslinks and Complex Features
 
 ```typescript
-import { Sequence } from 'sequaljs';
+import { Sequence } from 'sequaljs/dist/sequence';
 
 // Crosslinks with mass shifts and info tags
 const seq = Sequence.fromProforma('PEPTK[XL:DSS#XL1|+138.068|INFO:reaction=NHS]IDE');
@@ -134,7 +134,7 @@ const complex = Sequence.fromProforma(
 ### Gap Notation
 
 ```typescript
-import { Sequence } from 'sequaljs';
+import { Sequence } from 'sequaljs/dist/sequence';
 
 // Parse sequence with gap of known mass
 const seq = Sequence.fromProforma('RTAAX[+367.0537]WT');
@@ -143,6 +143,55 @@ console.log(seq.seq[4].value); // "X"
 console.log(seq.seq[4].mods[0].modType); // "gap"
 console.log(seq.seq[4].mods[0].mass); // 367.0537
 ```
+### Charged Peptides
+
+```typescript
+import { Sequence } from 'sequaljs/dist/sequence';
+
+// Parse a peptide with charge state
+const seq = Sequence.fromProforma('PEPTIDE/2');
+console.log(seq.charge); // 2
+
+// Parse a peptide with modification and charge state
+const seq2 = Sequence.fromProforma('ELVIS[Phospho]K/3');
+console.log(seq2.charge); // 3
+console.log(seq2.toProforma()); // "ELVIS[Phospho]K/3"
+
+// Modify charge state
+seq2.charge = 4;
+console.log(seq2.toProforma()); // "ELVIS[Phospho]K/4"
+
+// Peptide with ionic species
+const seq3 = Sequence.fromProforma('PEPTIDE/2[+Na+]');
+console.log(seq3.charge); // 2
+console.log(seq3.ionicSpecies); // "+Na+"
+```
+
+### Chimeric Spectra
+
+```typescript
+import { Sequence } from 'sequaljs/dist/sequence';
+
+// Parse a basic chimeric spectrum with two peptides
+const chimeric = Sequence.fromProforma('PEPTIDE/2+ANOTHER/3');
+console.log(chimeric.isChimeric); // true
+console.log(chimeric.toStrippedString()); // "PEPTIDE" (first component)
+console.log(chimeric.peptidoforms.length); // 2
+console.log(chimeric.charge); // 2
+console.log(chimeric.peptidoforms[1].toStrippedString()); // "ANOTHER"
+console.log(chimeric.peptidoforms[1].charge); // 3
+
+// Complex chimeric spectrum with modifications
+const complexChimeric = Sequence.fromProforma(
+  '[Acetyl]-PEP[+79.966]TIDE-[Amidated]/2[+Na+]+S[Phospho]EQ/3'
+);
+console.log(complexChimeric.peptidoforms.length); // 2
+console.log(complexChimeric.mods.get(-1)[0].modValue.primaryValue); // "Acetyl"
+console.log(complexChimeric.seq[2].mods[0].modValue.primaryValue); // "+79.966"
+console.log(complexChimeric.ionicSpecies); // "+Na+"
+console.log(complexChimeric.peptidoforms[1].seq[0].mods[0].modValue.primaryValue); // "Phospho"
+```
+
 
 ## API Reference
 
