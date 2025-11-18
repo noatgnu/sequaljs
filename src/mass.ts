@@ -1,5 +1,15 @@
 import {H, O} from "./resources";
 
+/**
+ * Calculates the mass of a sequence.
+ *
+ * @param seq - The sequence of amino acids.
+ * @param massDict - A dictionary of masses for the amino acids.
+ * @param NTerminus - The mass of the N-terminus.
+ * @param OTerminus - The mass of the O-terminus.
+ * @param withWater - Whether to include the mass of water.
+ * @returns The mass of the sequence.
+ */
 export function calculateMass(
   seq: any[],
   massDict?: Record<string, number>,

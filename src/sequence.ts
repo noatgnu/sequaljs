@@ -89,6 +89,11 @@ export function orderedSerializePositionDict(positions: Record<number, any>): st
   }
 }
 
+/**
+ * Represents a sequence of amino acids.
+ *
+ * @template T - The type of the blocks in the sequence.
+ */
 export class Sequence<T extends BaseBlock = AminoAcid> {
   // Regular expression patterns for parsing
   private static _MOD_PATTERN = /[\(|\[]+([^\)]+)[\)|\]]+/;
@@ -110,8 +115,25 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   peptidoforms: Sequence[];
   private currentIterCount: number = 0;
 
+  // ProForma 2.1: Named entities (Section 8.2)
+  peptidoformName: string | null = null;
+  peptidoformIonName: string | null = null;
+  compoundIonName: string | null = null;
+
   /**
-   * Create a sequence object.
+   * Initializes a Sequence object.
+   *
+   * @param seq - The sequence string or an array of blocks.
+   * @param encoder - The encoder to use for creating new blocks.
+   * @param mods - The modifications to apply to the sequence.
+   * @param parse - Whether to parse the sequence.
+   * @param parserIgnore - The characters to ignore during parsing.
+   * @param modPosition - The position of the modifications.
+   * @param chains - The chains of the sequence.
+   * @param globalMods - The global modifications of the sequence.
+   * @param sequenceAmbiguities - The sequence ambiguities of the sequence.
+   * @param charge - The charge of the sequence.
+   * @param ionicSpecies - The ionic species of the sequence.
    */
   constructor(
     seq: string | any[] | Sequence,
@@ -175,7 +197,10 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   }
 
   /**
-   * Create a Sequence object from a ProForma string with multi-chain support.
+   * Creates a Sequence object from a ProForma string.
+   *
+   * @param proformaStr - The ProForma string to parse.
+   * @returns The parsed sequence.
    */
   static fromProforma(proformaStr: string): Sequence {
     if (proformaStr.includes("//")) {
@@ -215,7 +240,10 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
       modifications,
       globalMods,
       sequenceAmbiquities,
-      chargeInfo
+      chargeInfo,
+      peptidoformName,
+      peptidoformIonName,
+      compoundIonName
     ] = ProFormaParser.parse(proformaStr);
     const charge = chargeInfo ? chargeInfo[0] : null;
     const species = chargeInfo ? chargeInfo[1] : null;
@@ -257,11 +285,20 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
     }
     seq.peptidoforms = [seq]
 
+    // ProForma 2.1: Set naming fields (Section 8.2)
+    seq.peptidoformName = peptidoformName;
+    seq.peptidoformIonName = peptidoformIonName;
+    seq.compoundIonName = compoundIonName;
+
     return seq;
   }
 
   /**
-   * Parse the input sequence into a list of BaseBlock objects.
+   * Parses the input sequence into a list of BaseBlock objects.
+   *
+   * @param seq - The sequence string or an array of blocks.
+   * @param modPosition - The position of the modifications.
+   * @private
    */
   private _parseSequence(seq: string | any[], modPosition: 'left' | 'right'): void {
     let currentMod: Modification[] = [];
@@ -348,7 +385,12 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   }
 
   /**
-   * Apply modifications to a block.
+   * Applies modifications to a block.
+   *
+   * @param block - The block to apply the modifications to.
+   * @param position - The position of the block.
+   * @param pendingMods - The pending modifications to apply.
+   * @private
    */
   private _applyModifications(block: T, position: number, pendingMods: Modification[]): void {
     // Apply pending modifications
@@ -373,7 +415,11 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   }
 
   /**
-   * Extract modification value from a string.
+   * Extracts the modification value from a string.
+   *
+   * @param modStr - The modification string.
+   * @returns The modification value.
+   * @private
    */
   private _extractModValue(modStr: string): string {
     if (
@@ -386,7 +432,11 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   }
 
   /**
-   * Iterate through sequence elements, identifying blocks and modifications.
+   * Iterates through the sequence elements, identifying blocks and modifications.
+   *
+   * @param seq - The sequence string or an array of blocks.
+   * @yields A tuple containing the block and a boolean indicating if it is a modification.
+   * @private
    */
   private *_sequenceIterator(seq: string | any[]): Generator<[any, boolean]> {
     let modOpen = 0;
@@ -425,7 +475,11 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
 
 
   /**
-   * Deep copy an object or array.
+   * Deep copies an object or array.
+   *
+   * @param obj - The object or array to deep copy.
+   * @returns The deep copied object or array.
+   * @private
    */
   private deepCopy<U>(obj: U): U {
     if (obj === null || typeof obj !== 'object') {
@@ -446,7 +500,9 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   }
 
   /**
-   * Convert the sequence to ProForma format.
+   * Converts the sequence to a ProForma string.
+   *
+   * @returns The ProForma string.
    */
   toProforma(): string {
     if (this.isMultiChain) {
@@ -462,10 +518,25 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   }
 
   /**
-   * Convert a chain to ProForma format.
+   * Converts a chain to a ProForma string.
+   *
+   * @param chain - The chain to convert.
+   * @returns The ProForma string.
+   * @private
    */
   private _chainToProforma(chain: Sequence): string {
     let result = "";
+
+    // ProForma 2.1: Add naming notations (Section 8.2)
+    if (this.compoundIonName) {
+      result += `(>>>${this.compoundIonName})`;
+    }
+    if (this.peptidoformIonName) {
+      result += `(>>${this.peptidoformIonName})`;
+    }
+    if (this.peptidoformName) {
+      result += `(>${this.peptidoformName})`;
+    }
 
     // Add global modifications
     for (const mod of this.globalMods) {
@@ -639,7 +710,11 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   }
 
   /**
-   * Get modifications and add to string.
+   * Gets the modifications of an amino acid and adds them to the result string.
+   *
+   * @param aa - The amino acid.
+   * @param result - The result string.
+   * @returns The result string with the modifications.
    */
   getModAndAddToString(aa: AminoAcid, result: string): string {
     let modStr = "";
@@ -667,7 +742,12 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   }
 
   /**
-   * Add info tags to the result string based on the modification.
+   * Adds info tags to the result string based on the modification.
+   *
+   * @param result - The result string.
+   * @param mod - The modification.
+   * @returns The result string with the info tags.
+   * @private
    */
   private _addInfoTags(result: string, mod: Modification): string {
     let infoStr = "";
@@ -738,7 +818,10 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   }
 
   /**
-   * Get item or slice from sequence.
+   * Gets an item or a slice from the sequence.
+   *
+   * @param key - The index or the slice range.
+   * @returns The item or the new sequence.
    */
   getItem(key: number | [number, number]): BaseBlock | AminoAcid | Sequence {
     if (Array.isArray(key)) {
@@ -752,28 +835,30 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   }
 
   /**
-   * Get length of sequence.
+   * Gets the length of the sequence.
    */
   get length(): number {
     return this.seqLength;
   }
 
   /**
-   * String representation of sequence.
+   * Returns a string representation of the sequence.
+   * @returns The string representation.
    */
   toString(): string {
     return this.seq.map(block => block.toString()).join("");
   }
 
   /**
-   * Programmatic representation of sequence.
+   * Returns a detailed string representation of the sequence.
+   * @returns The detailed string representation.
    */
   toRepr(): string {
     return `Sequence('${this.toString()}')`;
   }
 
   /**
-   * Make the sequence iterable.
+   * Makes the sequence iterable.
    */
   [Symbol.iterator](): Iterator<T> {
     let index = 0;
@@ -791,7 +876,10 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   }
 
   /**
-   * Check if two sequences are equal.
+   * Checks if two sequences are equal.
+   *
+   * @param other - The other sequence to compare with.
+   * @returns True if the sequences are equal, false otherwise.
    */
   equals(other: any): boolean {
     if (!(other instanceof Sequence)) {
@@ -809,7 +897,9 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   }
 
   /**
-   * Add modifications to residues at specified positions.
+   * Adds modifications to the sequence.
+   *
+   * @param modDict - A dictionary of modifications to add.
    */
   addModifications(modDict: Record<number, Modification[]>): void {
     for (const aa of this.seq) {
@@ -824,14 +914,24 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   }
 
   /**
-   * Return the sequence as a string without any modification annotations.
+   * Returns the sequence as a string without any modification annotations.
+   * @returns The stripped sequence string.
    */
   toStrippedString(): string {
     return this.seq.map(block => block.value).join("");
   }
 
   /**
-   * Customize the sequence string with annotations.
+   * Customizes the sequence string with annotations.
+   *
+   * @param data - The data to use for annotation.
+   * @param annotationPlacement - The placement of the annotations.
+   * @param blockSeparator - The separator to use between blocks.
+   * @param annotationEncloseCharacters - The characters to use for enclosing annotations.
+   * @param individualAnnotationEnclose - Whether to enclose individual annotations.
+   * @param individualAnnotationEncloseCharacters - The characters to use for enclosing individual annotations.
+   * @param individualAnnotationSeparator - The separator to use between individual annotations.
+   * @returns The customized sequence string.
    */
   toStringCustomize(
     data: Record<number, string | string[]>,
@@ -881,7 +981,15 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   }
 
   /**
-   * Format annotation strings.
+   * Formats an annotation string.
+   *
+   * @param annotations - The annotations to format.
+   * @param individualEnclose - Whether to enclose individual annotations.
+   * @param individualEncloseChars - The characters to use for enclosing individual annotations.
+   * @param separator - The separator to use between annotations.
+   * @param groupEncloseChars - The characters to use for enclosing the group of annotations.
+   * @returns The formatted annotation string.
+   * @private
    */
   private _formatAnnotation(
     annotations: string | string[],
@@ -913,7 +1021,11 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   }
 
   /**
-   * Find positions in the sequence that match a given regex motif.
+   * Finds positions in the sequence that match a given regex motif.
+   *
+   * @param motif - The regex motif to search for.
+   * @param ignore - An array of booleans indicating which positions to ignore.
+   * @yields The start and end positions of the matches.
    */
   *findWithRegex(motif: string, ignore?: boolean[]): Iterable<[number, number]> {
     const pattern = new RegExp(motif, 'g');
@@ -945,14 +1057,21 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   }
 
   /**
-   * Identify gaps in the sequence.
+   * Identifies gaps in the sequence.
+   *
+   * @returns An array of booleans indicating which positions are gaps.
    */
   gaps(): boolean[] {
     return this.seq.map(block => block.value === "-");
   }
 
   /**
-   * Count occurrences of a character in a range.
+   * Counts the occurrences of a character in a range.
+   *
+   * @param char - The character to count.
+   * @param start - The start of the range.
+   * @param end - The end of the range.
+   * @returns The number of occurrences.
    */
   count(char: string, start: number, end: number): number {
     const subStr = this.toStrippedString().substring(start, end);
@@ -960,7 +1079,8 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   }
 
   /**
-   * Convert the sequence to a dictionary representation.
+   * Converts the sequence to a dictionary representation.
+   * @returns A dictionary containing the sequence's attributes.
    */
   toDict(): Record<string, any> {
     // Collect all modifications by position
@@ -984,7 +1104,7 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
 
 
 /**
- * Generator for sequences with different modification combinations.
+ * A generator for sequences with different modification combinations.
  *
  * This class creates all possible modified sequences by applying combinations
  * of static and variable modifications to a base sequence.
@@ -1001,15 +1121,15 @@ export class ModdedSequenceGenerator {
   private variableMap?: ModificationMap;
 
   /**
-   * Initialize a ModdedSequenceGenerator object.
+   * Initializes a ModdedSequenceGenerator object.
    *
-   * @param seq - The base sequence to modify
-   * @param variableMods - List of variable modifications to apply
-   * @param staticMods - List of static modifications to apply
-   * @param usedScenarios - Set of serialized modification scenarios to avoid duplicates
-   * @param parseModPosition - Whether to parse positions using modification regex patterns
-   * @param modPositionDict - Pre-computed positions for modifications
-   * @param ignorePosition - Set of positions to ignore when applying modifications
+   * @param seq - The base sequence to modify.
+   * @param variableMods - The variable modifications to apply.
+   * @param staticMods - The static modifications to apply.
+   * @param usedScenarios - The set of used scenarios.
+   * @param parseModPosition - Whether to parse the modification positions.
+   * @param modPositionDict - A dictionary of modification positions.
+   * @param ignorePosition - The positions to ignore.
    */
   constructor(
     seq: string,
@@ -1058,7 +1178,9 @@ export class ModdedSequenceGenerator {
   }
 
   /**
-   * Generate all possible modification combinations.
+   * Generates all possible modification combinations.
+   *
+   * @yields A dictionary of modification positions.
    */
   *generate(): Generator<Record<number, Modification[]>> {
     if (this.variableMods.length === 0) {
@@ -1099,7 +1221,10 @@ export class ModdedSequenceGenerator {
   }
 
   /**
-   * Generate dictionary of positions for static modifications.
+   * Generates a dictionary of positions for static modifications.
+   *
+   * @returns A dictionary of modification positions.
+   * @private
    */
   private _generateStaticModPositions(): Record<number, Modification[]> {
     const positionDict: Record<number, Modification[]> = {};
@@ -1122,7 +1247,8 @@ export class ModdedSequenceGenerator {
   }
 
   /**
-   * Generate all possible position combinations for variable modifications.
+   * Generates all possible position combinations for variable modifications.
+   * @private
    */
   private _generateVariableModScenarios(): void {
     this.variableMapScenarios = {};
@@ -1144,10 +1270,12 @@ export class ModdedSequenceGenerator {
   }
 
   /**
-   * Recursively explore all possible modification scenarios.
+   * Recursively explores all possible modification scenarios.
    *
-   * @param currentModIdx - Index of the current modification being processed
-   * @param currentScenario - Current scenario being built
+   * @param currentModIdx - The index of the current modification being processed.
+   * @param currentScenario - The current scenario being built.
+   * @yields A dictionary of modification positions.
+   * @private
    */
   private *_exploreScenarios(
     currentModIdx: number = 0,
@@ -1181,7 +1309,11 @@ export class ModdedSequenceGenerator {
   }
 
   /**
-   * Create a deep copy of a modification scenario.
+   * Creates a deep copy of a modification scenario.
+   *
+   * @param scenario - The scenario to deep copy.
+   * @returns The deep copied scenario.
+   * @private
    */
   private _deepCopyScenario(scenario: Record<number, Modification[]>): Record<number, Modification[]> {
     const copy: Record<number, Modification[]> = {};
@@ -1194,7 +1326,11 @@ export class ModdedSequenceGenerator {
   }
 
   /**
-   * Create a deep copy of a modification.
+   * Creates a deep copy of a modification.
+   *
+   * @param mod - The modification to deep copy.
+   * @returns The deep copied modification.
+   * @private
    */
   private _deepCopyModification(mod: Modification): Modification {
     return Object.assign(Object.create(Object.getPrototypeOf(mod)),
@@ -1202,6 +1338,12 @@ export class ModdedSequenceGenerator {
   }
 }
 
+/**
+ * Splits a chimeric ProForma string into its constituent parts.
+ *
+ * @param proformaStr - The chimeric ProForma string to split.
+ * @returns An array of ProForma strings.
+ */
 export function splitChimericProforma(proformaStr: string): string[] {
   const parts: string[] = [];
   let currentPartStart: number = 0;

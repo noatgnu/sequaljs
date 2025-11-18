@@ -12,12 +12,12 @@ export const by = "by";
 export const cz = "cz";
 
 /**
- * Calculate non-labile modifications and yield associated transitions.
- *
+ * Calculates non-labile modifications and yields associated transitions.
  * For example, "by" would yield a tuple of "b" and "y" transitions.
  *
- * @param sequence - The sequence to be fragmented
- * @param fragmentType - The type of fragment transition (e.g., "by", "ax")
+ * @param sequence - The sequence to be fragmented.
+ * @param fragmentType - The type of fragment transition (e.g., "by", "ax").
+ * @yields A tuple of two Ion objects representing the fragmented sequence.
  */
 export function* fragmentNonLabile(
   sequence: Sequence,
@@ -41,10 +41,10 @@ export function* fragmentNonLabile(
 }
 
 /**
- * Calculate all labile modification variants for the sequence and its associated labile modifications.
+ * Calculates all labile modification variants for the sequence and its associated labile modifications.
  *
- * @param sequence - The sequence to be fragmented
- * @returns An Ion object representing the fragmented sequence with labile modifications
+ * @param sequence - The sequence to be fragmented.
+ * @returns An Ion object representing the fragmented sequence with labile modifications.
  */
 export function fragmentLabile(sequence: Sequence): Ion {
   let fragmentNumber = 0;
@@ -70,10 +70,10 @@ export class FragmentFactory {
   ignore: Modification[];
 
   /**
-   * Initialize a FragmentFactory object.
+   * Initializes a FragmentFactory object.
    *
-   * @param fragmentType - The type of fragment transition (e.g., "by", "ax")
-   * @param ignore - A list of modifications to ignore
+   * @param fragmentType - The type of fragment transition (e.g., "by", "ax").
+   * @param ignore - A list of modifications to ignore.
    */
   constructor(fragmentType: string, ignore: Modification[] = []) {
     this.fragment_type = fragmentType;
@@ -81,9 +81,9 @@ export class FragmentFactory {
   }
 
   /**
-   * Set the list of modifications to ignore.
+   * Sets the list of modifications to ignore.
    *
-   * @param ignore - A list of modifications to ignore
+   * @param ignore - A list of modifications to ignore.
    */
   setIgnore(ignore: Modification[]): void {
     this.ignore = ignore;

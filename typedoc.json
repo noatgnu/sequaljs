@@ -1,0 +1,15 @@
+{
+  "entryPoints": [
+    "src/amino_acid.ts",
+    "src/base_block.ts",
+    "src/ion.ts",
+    "src/mass.ts",
+    "src/mass_spectrometry.ts",
+    "src/modification.ts",
+    "src/proforma.ts",
+    "src/resources.ts",
+    "src/sequence.ts",
+    "src/utils.ts"
+  ],
+  "out": "docs"
+}

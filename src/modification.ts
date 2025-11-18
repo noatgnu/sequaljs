@@ -1,7 +1,10 @@
 import {monosaccharides} from "./resources";
 import {BaseBlock} from "./base_block";
 
-class PipeValue {
+/**
+ * Represents a value in a ProForma modification string.
+ */
+export class PipeValue {
   static SYNONYM = "synonym";
   static INFO_TAG = "info_tag";
   static MASS = "mass";
@@ -30,6 +33,16 @@ class PipeValue {
   isValidFormula: boolean = false;
   assignedTypes: string[] = [];
 
+  charge: string | null = null;        // e.g., "z+2", "z-1"
+  chargeValue: number | null = null;   // e.g., 2, -1
+
+  /**
+   * Initializes a PipeValue object.
+   *
+   * @param value - The value of the pipe value.
+   * @param valueType - The type of the pipe value.
+   * @param originalValue - The original value of the pipe value.
+   */
   constructor(value: string, valueType: string, originalValue: string | null = null) {
     this.value = value;
     this._type = valueType;
@@ -37,6 +50,10 @@ class PipeValue {
     this._extractProperties();
   }
 
+  /**
+   * Extracts properties from the value.
+   * @private
+   */
   private _extractProperties(): void {
     if (this.type === PipeValue.CROSSLINK && this.value.includes("#")) {
       const parts = this.value.split("#", 2);
@@ -55,16 +72,38 @@ class PipeValue {
         }
       }
     }
+
+    // ProForma 2.1: Handle charged formulas (Section 11.1)
+    if (this.type === PipeValue.FORMULA) {
+      const chargeMatch = this.value.match(/:z([+-]\d+)$/);
+      if (chargeMatch) {
+        this.charge = 'z' + chargeMatch[1];
+        this.chargeValue = parseInt(chargeMatch[1]);
+        // Remove charge notation from value
+        this.value = this.value.replace(/:z[+-]\d+$/, '');
+      }
+    }
   }
 
+  /**
+   * Returns a string representation of the pipe value.
+   * @returns The string representation.
+   */
   toString(): string {
     return this.value;
   }
 
+  /**
+   * Gets the type of the pipe value.
+   */
   get type(): string {
     return this._type;
   }
 
+  /**
+   * Sets the type of the pipe value.
+   * @param value - The new type.
+   */
   set type(value: string) {
     this._type = value;
     if (this.assignedTypes.length > 0) {
@@ -74,6 +113,10 @@ class PipeValue {
     }
   }
 
+  /**
+   * Assigns a type to the pipe value.
+   * @param value - The type to assign.
+   */
   assignType(value: string): void {
     if (!this.assignedTypes.includes(value)) {
       this.assignedTypes.push(value);
@@ -81,6 +124,9 @@ class PipeValue {
   }
 }
 
+/**
+ * Represents the value of a modification.
+ */
 export class ModificationValue {
   private static KNOWN_SOURCES = new Set<string>([
     "Unimod",
@@ -111,25 +157,51 @@ export class ModificationValue {
   private _mass: number | null;
   private _pipeValues: PipeValue[] = [];
 
+  /**
+   * Initializes a ModificationValue object.
+   *
+   * @param value - The value of the modification.
+   * @param mass - The mass of the modification.
+   */
   constructor(value: string, mass: number | null = null) {
     this._mass = mass;
     this._parseValue(value);
   }
 
+  /**
+   * Validates a glycan string.
+   *
+   * @param glycan - The glycan string to validate.
+   * @returns True if the glycan is valid, false otherwise.
+   */
   static validateGlycan(glycan: string): boolean {
     return ModificationValue._validateGlycan(glycan);
   }
 
+  /**
+   * Validates a formula string.
+   *
+   * @param formula - The formula string to validate.
+   * @returns True if the formula is valid, false otherwise.
+   */
   static validateFormula(formula: string): boolean {
     return ModificationValue._validateFormula(formula);
   }
 
+  /**
+   * Gets the localization score of the modification.
+   */
   get localizationScore(): number | null {
     return this._pipeValues
       .filter((pv) => pv.type === PipeValue.AMBIGUITY)
       .map((pv) => pv.localizationScore)[0] || null;
   }
 
+  /**
+   * Parses the value of the modification.
+   * @param value - The value to parse.
+   * @private
+   */
   private _parseValue(value: string): void {
     if (value.includes("|")) {
       const components = value.split("|");
@@ -142,6 +214,11 @@ export class ModificationValue {
     }
   }
 
+  /**
+   * Processes the primary value of the modification.
+   * @param value - The primary value to process.
+   * @private
+   */
   private _processPrimaryValue(value: string): void {
     if (value === "#BRANCH") {
       this._primaryValue = "";
@@ -179,14 +256,23 @@ export class ModificationValue {
 
     // Handle source prefix
     if (value.includes(":")) {
-      const parts = value.split(":", 2);
+      // ProForma 2.1: Split only on first colon to preserve charge notation (Section 11.1)
+      const firstColonIndex = value.indexOf(":");
+      const parts = [value.substring(0, firstColonIndex), value.substring(firstColonIndex + 1)];
       if (ModificationValue.KNOWN_SOURCES.has(parts[0])) {
         this._source = parts[0];
         this._primaryValue = parts[1];
         let isValidGlycan = false;
         let isValidFormula = false;
 
+        // ProForma 2.1: Extract charge notation from formula before validation (Section 11.1)
+        let chargeNotation: string | null = null;
         if (this._source.toUpperCase() === "FORMULA") {
+          const chargeMatch = this._primaryValue.match(/:z([+-]\d+)$/);
+          if (chargeMatch) {
+            chargeNotation = 'z' + chargeMatch[1];
+            this._primaryValue = this._primaryValue.replace(/:z[+-]\d+$/, '');
+          }
           isValidFormula = ModificationValue._validateFormula(this._primaryValue);
         } else if (this._source.toUpperCase() === "GLYCAN") {
           isValidGlycan = ModificationValue._validateGlycan(this._primaryValue);
@@ -249,8 +335,14 @@ export class ModificationValue {
             pipeVal = new PipeValue(parts[1], PipeValue.GAP, value);
             pipeVal.isValidGlycan = true;
           } else if (this._source.toUpperCase() === "FORMULA") {
-            pipeVal = new PipeValue(parts[1], PipeValue.FORMULA, value);
+            pipeVal = new PipeValue(this._primaryValue, PipeValue.FORMULA, value);
             pipeVal.isValidFormula = isValidFormula;
+
+            // ProForma 2.1: Set charge notation if present (Section 11.1)
+            if (chargeNotation) {
+              pipeVal.charge = chargeNotation;
+              pipeVal.chargeValue = parseInt(chargeNotation.substring(1));
+            }
           } else {
             pipeVal = new PipeValue(parts[1], PipeValue.SYNONYM, value);
           }
@@ -362,17 +454,50 @@ export class ModificationValue {
       }
     }
   }
+
+  /**
+   * Validates a glycan string.
+   * @param glycan - The glycan string to validate.
+   * @returns True if the glycan is valid, false otherwise.
+   * @private
+   */
   private static _validateGlycan(glycan: string): boolean {
     const glycanClean = glycan.replace(/\s/g, "");
     const sortedMonos = [...monosaccharides].sort((a, b) => b.length - a.length);
 
     const escapedMonos = sortedMonos.map(m => m.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'));
-    const monoPatternString = "(" + escapedMonos.join("|") + ")(\\((\\d+)\\))?";
+    const monoPatternString = "(" + escapedMonos.join("|") + ")((\\((\\d+)\\))|\\d+)?";
 
     const monoPattern = new RegExp(monoPatternString);
 
     let i = 0;
     while (i < glycanClean.length) {
+      if (glycanClean[i] === '{') {
+        const closeBrace = glycanClean.indexOf('}', i);
+        if (closeBrace === -1) {
+          return false;
+        }
+
+        const formulaPart = glycanClean.substring(i + 1, closeBrace);
+        if (!this._validateCustomMonosaccharide(formulaPart)) {
+          return false;
+        }
+
+        i = closeBrace + 1;
+
+        if (i < glycanClean.length && glycanClean[i] === '(') {
+          const closeParen = glycanClean.indexOf(')', i);
+          if (closeParen !== -1) {
+            i = closeParen + 1;
+          }
+        } else if (i < glycanClean.length && /\d/.test(glycanClean[i])) {
+          while (i < glycanClean.length && /\d/.test(glycanClean[i])) {
+            i++;
+          }
+        }
+        continue;
+      }
+
       const match = glycanClean.substring(i).match(monoPattern);
       if (!match) {
         return false;
@@ -383,6 +508,33 @@ export class ModificationValue {
     return i === glycanClean.length;
   }
 
+  /**
+   * Validates a custom monosaccharide formula.
+   * @param formula - The formula to validate.
+   * @returns True if the formula is valid, false otherwise.
+   * @private
+   */
+  private static _validateCustomMonosaccharide(formula: string): boolean {
+    let cleanFormula = formula;
+
+    if (cleanFormula.includes(':z')) {
+      const chargeIndex = cleanFormula.lastIndexOf(':z');
+      const chargeNotation = cleanFormula.substring(chargeIndex);
+      if (!/^:z[+-]\d+$/.test(chargeNotation)) {
+        return false;
+      }
+      cleanFormula = cleanFormula.substring(0, chargeIndex);
+    }
+
+    return this._validateFormula(cleanFormula);
+  }
+
+  /**
+   * Validates a formula string.
+   * @param formula - The formula to validate.
+   * @returns True if the formula is valid, false otherwise.
+   * @private
+   */
   private static _validateFormula(formula: string): boolean {
     if (!formula.trim()) {
       return false;
@@ -453,7 +605,11 @@ export class ModificationValue {
     return true;
   }
 
-
+  /**
+   * Processes a pipe component of the modification.
+   * @param component - The pipe component to process.
+   * @private
+   */
   private _processPipeComponent(component: string): void {
     if (component === "#BRANCH") {
       const pipeVal: PipeValue = new PipeValue(component, PipeValue.BRANCH, component);
@@ -666,61 +822,109 @@ export class ModificationValue {
     }
   }
 
+  /**
+   * Gets the source of the modification.
+   */
   get source(): string | null {
     return this._source;
   }
 
+  /**
+   * Gets the primary value of the modification.
+   */
   get primaryValue(): string {
     return this._primaryValue;
   }
 
+  /**
+   * Gets the mass of the modification.
+   */
   get mass(): number | null {
     return this._mass;
   }
 
+  /**
+   * Gets the pipe values of the modification.
+   */
   get pipeValues(): PipeValue[] {
     return this._pipeValues;
   }
+
+  /**
+   * Gets the info tags of the modification.
+   */
   get infoTags(): string[] {
     return this._pipeValues
       .filter((pv) => pv.type === PipeValue.INFO_TAG)
       .map((pv) => pv.value);
   }
+
+  /**
+   * Gets the synonyms of the modification.
+   */
   get synonyms(): string[] {
     return this._pipeValues
       .filter((pv) => pv.type === PipeValue.SYNONYM)
       .map((pv) => pv.value);
   }
+
+  /**
+   * Gets the observed mass of the modification.
+   */
   get observedMass(): number | null {
     return this._pipeValues
       .filter((pv) => pv.type === PipeValue.OBSERVED_MASS)
       .map((pv) => pv.observedMass)[0] || null;
   }
+
+  /**
+   * Gets the ambiguity group of the modification.
+   */
   get ambiguityGroup(): string | null {
     return this._pipeValues
       .filter((pv) => pv.type === PipeValue.AMBIGUITY)
       .map((pv) => pv.ambiguityGroup)[0] || null;
   }
+
+  /**
+   * Checks if the modification is an ambiguity reference.
+   */
   get isAmbiguityRef(): boolean {
     return this._pipeValues
       .filter((pv) => pv.type === PipeValue.AMBIGUITY)
       .map((pv) => pv.isAmbiguityRef)[0] || false;
   }
+
+  /**
+   * Checks if the modification is a crosslink reference.
+   */
   get isCrosslinkRef(): boolean {
     return this._pipeValues
       .filter((pv) => pv.type === PipeValue.CROSSLINK)
       .map((pv) => pv.isCrosslinkRef)[0] || false;
   }
+
+  /**
+   * Checks if the modification is a branch reference.
+   */
   get isBranchRef(): boolean {
     return this._pipeValues
       .filter((pv) => pv.type === PipeValue.BRANCH)
       .map((pv) => pv.isBranchRef)[0] || false;
   }
+
+  /**
+   * Checks if the modification is a branch.
+   */
   get isBranch(): boolean {
     return this._pipeValues
       .filter((pv) => pv.type === PipeValue.BRANCH)
       .map((pv) => pv.isBranch)[0] || false;
   }
+
+  /**
+   * Gets the crosslink ID of the modification.
+   */
   get crossLinkId(): string | null {
     return this._pipeValues
       .filter((pv) => pv.type === PipeValue.CROSSLINK)
@@ -728,6 +932,9 @@ export class ModificationValue {
   }
 }
 
+/**
+ * Represents a modification to a sequence.
+ */
 export class Modification extends BaseBlock {
   static readonly KNOWN_SOURCES: Set<string> = new Set([
     "Unimod", "U", "PSI-MOD", "M", "RESID", "R", "XL-MOD",
@@ -754,6 +961,44 @@ export class Modification extends BaseBlock {
   public rangeEnd: number | null;
   public localizationScore: number | null;
 
+  // ProForma 2.1: Ion notation (Section 11.6)
+  private _isIonType: boolean;
+
+  // ProForma 2.1: Placement controls (Section 11.2)
+  private _positionConstraint: string[] | null;
+  private _limitPerPosition: number | null;
+  private _colocalizeKnown: boolean;
+  private _colocalizeUnknown: boolean;
+
+  /**
+   * Initializes a Modification object.
+   *
+   * @param value - The value of the modification.
+   * @param position - The position of the modification in the sequence.
+   * @param regexPattern - The regex pattern for the modification.
+   * @param fullName - The full name of the modification.
+   * @param modType - The type of the modification.
+   * @param labile - Whether the modification is labile.
+   * @param labilNumber - The labile number of the modification.
+   * @param mass - The mass of the modification.
+   * @param allFilled - Whether all positions of the modification are filled.
+   * @param crosslinkId - The crosslink ID of the modification.
+   * @param isCrosslinkRef - Whether the modification is a crosslink reference.
+   * @param isBranchRef - Whether the modification is a branch reference.
+   * @param isBranch - Whether the modification is a branch.
+   * @param ambiguityGroup - The ambiguity group of the modification.
+   * @param isAmbiguityRef - Whether the modification is an ambiguity reference.
+   * @param inRange - Whether the modification is in a range.
+   * @param rangeStart - The start of the range.
+   * @param rangeEnd - The end of the range.
+   * @param localizationScore - The localization score of the modification.
+   * @param modValue - The modification value.
+   * @param isIonType - Whether the modification is an ion type.
+   * @param positionConstraint - The position constraint of the modification.
+   * @param limitPerPosition - The limit per position of the modification.
+   * @param colocalizeKnown - Whether to colocalize known modifications.
+   * @param colocalizeUnknown - Whether to colocalize unknown modifications.
+   */
   constructor(
     value: string,
     position?: number,
@@ -774,7 +1019,12 @@ export class Modification extends BaseBlock {
     rangeStart?: number,
     rangeEnd?: number,
     localizationScore?: number,
-    modValue?: ModificationValue
+    modValue?: ModificationValue,
+    isIonType: boolean = false,
+    positionConstraint?: string[],
+    limitPerPosition?: number,
+    colocalizeKnown: boolean = false,
+    colocalizeUnknown: boolean = false
   ) {
     // Initialize parameters for superclass
     let processedValue = value;
@@ -821,6 +1071,15 @@ export class Modification extends BaseBlock {
     this._fullName = fullName || null;
     this._allFilled = allFilled;
 
+    // ProForma 2.1: Initialize ion type flag (Section 11.6)
+    this._isIonType = isIonType;
+
+    // ProForma 2.1: Initialize placement controls (Section 11.2)
+    this._positionConstraint = positionConstraint || null;
+    this._limitPerPosition = limitPerPosition || null;
+    this._colocalizeKnown = colocalizeKnown;
+    this._colocalizeUnknown = colocalizeUnknown;
+
     if (modType === "labile") {
       this._labile = true;
     }
@@ -830,90 +1089,197 @@ export class Modification extends BaseBlock {
     }
   }
 
+  /**
+   * Gets the value of the modification.
+   */
   get value(): string {
     return this._modValue?.primaryValue || super.value;
   }
 
+  /**
+   * Sets the value of the modification.
+   * @param val - The new value.
+   */
   set value(val: string) {
     super.value = val;
   }
 
+  /**
+   * Gets the mass of the modification.
+   */
   get mass(): number {
     return this._modValue?.mass || super.mass || 0.0;
   }
 
+  /**
+   * Sets the mass of the modification.
+   * @param val - The new mass.
+   */
   set mass(val: number) {
     super.mass = val;
   }
 
+  /**
+   * Gets the observed mass of the modification.
+   */
   get observedMass(): number | null {
     return this._modValue?.observedMass || null;
   }
 
+  /**
+   * Gets the ambiguity group of the modification.
+   */
   get ambiguityGroup(): string | null {
     return this._modValue?.ambiguityGroup || this._ambiguityGroup;
   }
 
+  /**
+   * Checks if the modification is an ambiguity reference.
+   */
   get isAmbiguityRef(): boolean {
     return this._modValue?.isAmbiguityRef || this._isAmbiguityRef;
   }
 
+  /**
+   * Gets the synonyms of the modification.
+   */
   get synonyms(): string[] {
     return this._modValue.synonyms;
   }
 
+  /**
+   * Gets the modification value.
+   */
   get modValue(): ModificationValue {
     return this._modValue;
   }
+
+  /**
+   * Sets the modification value.
+   * @param val - The new modification value.
+   */
   set modValue(val: ModificationValue) {
     this._modValue = val;
   }
 
+  /**
+   * Gets the info tags of the modification.
+   */
   get infoTags(): string[] {
     return this._modValue.infoTags;
   }
 
+  /**
+   * Gets the crosslink ID of the modification.
+   */
   get crosslinkId(): string | null {
     return this._modValue?.crossLinkId || this._crosslinkId;
   }
 
+  /**
+   * Checks if the modification is a crosslink reference.
+   */
   get isCrosslinkRef(): boolean {
     return this._modValue?.isCrosslinkRef || this._isCrosslinkRef;
   }
 
+  /**
+   * Gets the source of the modification.
+   */
   get source(): string | null {
     return this._modValue?.source || this._source;
   }
 
+  /**
+   * Gets the original value of the modification.
+   */
   get originalValue(): string {
     return this._originalValue;
   }
 
+  /**
+   * Gets the regex pattern of the modification.
+   */
   get regex(): RegExp | null {
     return this._regex;
   }
 
+  /**
+   * Gets the type of the modification.
+   */
   get modType(): string {
     return this._modType;
   }
 
+  /**
+   * Checks if the modification is labile.
+   */
   get labile(): boolean {
     return this._labile;
   }
 
+  /**
+   * Gets the labile number of the modification.
+   */
   get labileNumber(): number {
     return this._labileNumber;
   }
 
+  /**
+   * Gets the full name of the modification.
+   */
   get fullName(): string | null {
     return this._fullName;
   }
 
+  /**
+   * Checks if all positions of the modification are filled.
+   */
   get allFilled(): boolean {
     return this._allFilled;
   }
 
-  // Methods
+  /**
+   * Checks if the modification is an ion type.
+   */
+  get isIonType(): boolean {
+    return this._isIonType;
+  }
+
+  /**
+   * Gets the position constraint of the modification.
+   */
+  getPositionConstraint(): string[] | null {
+    return this._positionConstraint;
+  }
+
+  /**
+   * Gets the limit per position of the modification.
+   */
+  getLimitPerPosition(): number | null {
+    return this._limitPerPosition;
+  }
+
+  /**
+   * Checks if to colocalize known modifications.
+   */
+  getColocalizeKnown(): boolean {
+    return this._colocalizeKnown;
+  }
+
+  /**
+   * Checks if to colocalize unknown modifications.
+   */
+  getColocalizeUnknown(): boolean {
+    return this._colocalizeUnknown;
+  }
+
+  /**
+   * Finds the positions of the modification in a sequence.
+   *
+   * @param seq - The sequence to search in.
+   * @yields The start and end positions of the modification.
+   */
   *findPositions(seq: string): Generator<[number, number], void, unknown> {
     if (!this._regex) {
       throw new Error(`No regex pattern defined for modification '${this.value}'`);
@@ -940,6 +1306,10 @@ export class Modification extends BaseBlock {
     }
   }
 
+  /**
+   * Converts the modification to a dictionary representation.
+   * @returns A dictionary containing the modification's attributes.
+   */
   toDict(): Record<string, any> {
     const baseDict = super.toDict();
     return {
@@ -957,6 +1327,11 @@ export class Modification extends BaseBlock {
     };
   }
 
+  /**
+   * Checks if two modifications are equal.
+   * @param other - The other modification to compare with.
+   * @returns True if the modifications are equal, false otherwise.
+   */
   equals(other: any): boolean {
     if (!super.equals(other)) {
       return false;
@@ -971,6 +1346,10 @@ export class Modification extends BaseBlock {
     );
   }
 
+  /**
+   * Generates a hash for the modification.
+   * @returns The hash code.
+   */
   hashCode(): number {
     const baseHash = super.hashCode();
     return baseHash ^
@@ -979,6 +1358,10 @@ export class Modification extends BaseBlock {
       this._labileNumber;
   }
 
+  /**
+   * Returns a string representation of the modification.
+   * @returns The string representation.
+   */
   toString(): string {
     if (this._isCrosslinkRef && this._crosslinkId) {
       return `#${this._crosslinkId}`;
@@ -1001,22 +1384,77 @@ export class Modification extends BaseBlock {
     return result;
   }
 
+  /**
+   * Validates a glycan string.
+   *
+   * @param glycan - The glycan string to validate.
+   * @returns True if the glycan is valid, false otherwise.
+   */
   static validateGlycan(glycan: string): boolean {
     return ModificationValue.validateGlycan(glycan);
   }
+
+  /**
+   * Validates a formula string.
+   *
+   * @param formula - The formula string to validate.
+   * @returns True if the formula is valid, false otherwise.
+   */
   static validateFormula(formula: string): boolean {
     return ModificationValue.validateFormula(formula);
   }
 
+  /**
+   * Checks if a modification is an ion type modification.
+   *
+   * @param modStr - The modification string to check.
+   * @returns True if the modification is an ion type modification, false otherwise.
+   */
+  static isIonTypeModification(modStr: string): boolean {
+    const modStrLower = modStr.toLowerCase();
+
+    // Check for -type-ion suffix
+    if (modStrLower.endsWith('-type-ion')) {
+      return true;
+    }
+
+    // Known Unimod ion type IDs
+    const ionTypeUnimodIds = new Set([
+      '140',   // a-type-ion
+      '2132',  // b-type-ion
+      '4',     // c-type-ion
+      '24',    // x-type-ion
+      '2133',  // y-type-ion
+      '23',    // z-type-ion
+    ]);
+
+    // Check for Unimod references (UNIMOD:id or U:id)
+    if (modStr.startsWith('UNIMOD:') || modStr.startsWith('U:')) {
+      const unimodId = modStr.split(':')[1];
+      return ionTypeUnimodIds.has(unimodId);
+    }
+
+    return false;
+  }
+
+  /**
+   * Checks if the modification is a branch reference.
+   */
   get isBranchRef(): boolean {
     return this.modValue.isBranchRef || this._isBranchRef;
   }
 
+  /**
+   * Checks if the modification is a branch.
+   */
   get isBranch(): boolean {
     return this.modValue.isBranch || this._isBranch;
   }
 
-
+  /**
+   * Converts the modification to a ProForma string.
+   * @returns The ProForma string.
+   */
   toProforma(): string {
     const parts: string[] = [];
 
@@ -1038,6 +1476,11 @@ export class Modification extends BaseBlock {
             }
           } else {
             mod_part += `${pv.value}`;
+          }
+
+          // ProForma 2.1: Add charge notation for formulas (Section 11.1)
+          if (pv.type === PipeValue.FORMULA && pv.charge) {
+            mod_part += `:${pv.charge}`;
           }
         } else {
           if (pv.mass) {
@@ -1083,19 +1526,40 @@ export class Modification extends BaseBlock {
     }
   }
 
+  /**
+   * Checks if the modification has an ambiguity.
+   */
   get hasAmbiguity() {
     return this.modValue.pipeValues.some(pv => pv.type === PipeValue.AMBIGUITY);
   }
 }
 
+/**
+ * Represents a global modification to a sequence.
+ */
 export class GlobalModification extends Modification {
   targetResidues: string[] | null;
   globalModType: string;
 
+  /**
+   * Initializes a GlobalModification object.
+   *
+   * @param value - The value of the modification.
+   * @param target_residues - The target residues of the modification.
+   * @param mod_type - The type of the modification.
+   * @param positionConstraint - The position constraint of the modification.
+   * @param limitPerPosition - The limit per position of the modification.
+   * @param colocalizeKnown - Whether to colocalize known modifications.
+   * @param colocalizeUnknown - Whether to colocalize unknown modifications.
+   */
   constructor(
     value: string,
     target_residues: string[] | null = null,
-    mod_type: string = "isotope"
+    mod_type: string = "isotope",
+    positionConstraint?: string[],
+    limitPerPosition?: number,
+    colocalizeKnown: boolean = false,
+    colocalizeUnknown: boolean = false
   ) {
     if (mod_type !== "isotope" && mod_type !== "fixed") {
       throw new Error("Global modification type must be 'isotope' or 'fixed'");
@@ -1106,7 +1570,27 @@ export class GlobalModification extends Modification {
       undefined, // position
       undefined, // regex_pattern
       undefined, // full_name
-      "global" // mod_type
+      "global", // mod_type
+      false, // labile
+      0, // labilNumber
+      0.0, // mass
+      false, // allFilled
+      undefined, // crosslinkId
+      false, // isCrosslinkRef
+      false, // isBranchRef
+      false, // isBranch
+      undefined, // ambiguityGroup
+      false, // isAmbiguityRef
+      false, // inRange
+      undefined, // rangeStart
+      undefined, // rangeEnd
+      undefined, // localizationScore
+      undefined, // modValue
+      false, // isIonType
+      positionConstraint, // positionConstraint (ProForma 2.1)
+      limitPerPosition, // limitPerPosition (ProForma 2.1)
+      colocalizeKnown, // colocalizeKnown (ProForma 2.1)
+      colocalizeUnknown // colocalizeUnknown (ProForma 2.1)
     );
 
     this.modValue = new ModificationValue(value)
@@ -1114,30 +1598,62 @@ export class GlobalModification extends Modification {
     this.globalModType = mod_type;
   }
 
-
+  /**
+   * Converts the modification to a ProForma string.
+   * @returns The ProForma string.
+   */
   toProforma(): string {
     if (this.globalModType === "isotope") {
       return `<${super.toProforma()}>`;
     } else {
-      const mod_value = super.toProforma();
-      let mod_str: string;
+      let mod_value = super.toProforma();
 
-      if (!mod_value.startsWith("[")) {
-        mod_str = `[${mod_value}]`;
-      } else {
-        mod_str = mod_value;
+      // Remove brackets if present
+      if (mod_value.startsWith("[") && mod_value.endsWith("]")) {
+        mod_value = mod_value.substring(1, mod_value.length - 1);
       }
 
+      // ProForma 2.1: Add placement control tags (Section 11.2)
+      const tags: string[] = [];
+
+      if (this.getPositionConstraint() && this.getPositionConstraint()!.length > 0) {
+        tags.push(`Position:${this.getPositionConstraint()!.join(',')}`);
+      }
+
+      if (this.getLimitPerPosition() !== null) {
+        tags.push(`Limit:${this.getLimitPerPosition()}`);
+      }
+
+      if (this.getColocalizeKnown()) {
+        tags.push('CoMKP');
+      }
+
+      if (this.getColocalizeUnknown()) {
+        tags.push('CoMUP');
+      }
+
+      if (tags.length > 0) {
+        mod_value += '|' + tags.join('|');
+      }
+
+      const mod_str = `[${mod_value}]`;
       const targets = this.targetResidues ? this.targetResidues.join(",") : "";
       return `<${mod_str}@${targets}>`;
     }
   }
 
+  /**
+   * Returns a string representation of the modification.
+   * @returns The string representation.
+   */
   toString(): string {
     return this.toProforma();
   }
 }
 
+/**
+ * Represents a map of modifications in a sequence.
+ */
 export class ModificationMap {
   seq: string;
   ignorePositions: Set<number>;
@@ -1145,6 +1661,15 @@ export class ModificationMap {
   modPositionDict: Record<string, number[]>;
   positionToMods: Map<number, Modification[]> = new Map();
 
+  /**
+   * Initializes a ModificationMap object.
+   *
+   * @param seq - The sequence.
+   * @param mods - The modifications in the sequence.
+   * @param ignore_positions - The positions to ignore in the sequence.
+   * @param parse_position - Whether to parse the position of the modifications.
+   * @param mod_position_dict - A dictionary of modification positions.
+   */
   constructor(
     seq: string,
     mods: Modification[] = [],
@@ -1159,6 +1684,12 @@ export class ModificationMap {
     this._buildMappings(mods, parse_position);
   }
 
+  /**
+   * Builds the mappings for the modifications.
+   * @param mods - The modifications to build the mappings for.
+   * @param parse_position - Whether to parse the position of the modifications.
+   * @private
+   */
   _buildMappings(mods: Modification[], parse_position: boolean): void {
     for (const mod of mods) {
       const mod_name = String(mod);
@@ -1206,18 +1737,43 @@ export class ModificationMap {
     }
   }
 
+  /**
+   * Gets the positions of a modification.
+   *
+   * @param mod_name - The name of the modification.
+   * @returns The positions of the modification.
+   */
   getModPositions(mod_name: string): number[] | null {
     return this.modPositionDict[mod_name] || null;
   }
 
+  /**
+   * Gets a modification by name.
+   *
+   * @param mod_name - The name of the modification.
+   * @returns The modification.
+   */
   getMod(mod_name: string): Modification | null {
     return this.modDictByName[mod_name] || null;
   }
 
+  /**
+   * Gets the modifications at a specific position.
+   *
+   * @param position - The position to get the modifications from.
+   * @returns The modifications at the specified position.
+   */
   getModsAtPosition(position: number): Modification[] {
     return this.positionToMods.get(position) || [];
   }
 
+  /**
+   * Checks if a modification exists at a specific position.
+   *
+   * @param position - The position to check.
+   * @param mod_name - The name of the modification.
+   * @returns True if the modification exists at the specified position, false otherwise.
+   */
   hasModAtPosition(position: number, mod_name?: string): boolean {
     const mods = this.getModsAtPosition(position);
     if (!mods.length) {
@@ -1229,6 +1785,10 @@ export class ModificationMap {
     return mods.some(mod => String(mod) === mod_name);
   }
 
+  /**
+   * Converts the modification map to a dictionary representation.
+   * @returns A dictionary containing the modification map's attributes.
+   */
   toDict(): Record<string, any> {
     return {
       sequence: this.seq,

@@ -1,12 +1,12 @@
 import {calculateHashCode} from "./utils";
 
+/**
+ * Base class for biochemical building blocks with position and mass properties.
+ *
+ * This abstract base class provides core functionality for blocks such as
+ * amino acids, modifications, and other biochemical components.
+ */
 export class BaseBlock {
-  /**
-   * Base class for biochemical building blocks with position and mass properties.
-   *
-   * This abstract base class provides core functionality for blocks such as
-   * amino acids, modifications, and other biochemical components.
-   */
 
   protected _value: string;
   private _position?: number | null;
@@ -14,26 +14,20 @@ export class BaseBlock {
   private _mass?: number | null;
   private _extra?: any;
 
+  /**
+   * Initializes a BaseBlock object.
+   *
+   * @param value - The identifier of the block.
+   * @param position - The position of the block within a chain.
+   * @param branch - Indicates whether this block is a branch of another block.
+   * @param mass - The mass of the block in Daltons.
+   */
   constructor(
     value: string,
     position?: number | null,
     branch: boolean = false,
     mass?: number | null
   ) {
-    /**
-     * Initialize a BaseBlock object.
-     *
-     * Parameters
-     * ----------
-     * value : string
-     *     The identifier of the block.
-     * position : number, optional
-     *     The position of the block within a chain.
-     * branch : boolean, optional
-     *     Indicates whether this block is a branch of another block.
-     * mass : number, optional
-     *     The mass of the block in Daltons.
-     */
     this._value = value;
     this._position = position ?? null;
     this._branch = branch;
@@ -41,59 +35,78 @@ export class BaseBlock {
     this._extra = undefined;
   }
 
+  /**
+   * Gets the identifier of the block.
+   */
   get value(): string {
-    /** Get the identifier of the block. */
     return this._value;
   }
 
+  /**
+   * Sets the identifier of the block.
+   * @param value - The new identifier.
+   */
   set value(value: string) {
-    /** Set the identifier of the block. */
     this._value = value;
   }
 
+  /**
+   * Gets the position of the block.
+   */
   get position(): number | null {
-    /** Get the position of the block. */
     return this._position ?? null;
   }
 
+  /**
+   * Sets the position of the block.
+   * @param position - The new position.
+   */
   set position(position: number | null) {
-    /** Set the position of the block. */
     this._position = position;
   }
 
+  /**
+   * Checks if the block is a branch.
+   */
   get branch(): boolean {
-    /** Check if the block is a branch. */
     return this._branch;
   }
 
+  /**
+   * Gets the mass of the block.
+   */
   get mass(): number | null {
-    /** Get the mass of the block. */
     return this._mass ?? null;
   }
 
+  /**
+   * Sets the mass of the block.
+   * @param mass - The new mass.
+   */
   set mass(mass: number | null) {
-    /** Set the mass of the block. */
     this._mass = mass;
   }
 
+  /**
+   * Gets extra information associated with the block.
+   */
   get extra(): any {
-    /** Get extra information associated with the block. */
     return this._extra;
   }
 
+  /**
+   * Sets extra information for the block.
+   * @param value - The extra information.
+   */
   set extra(value: any) {
-    /** Set extra information for the block. */
     this._extra = value;
   }
 
+  /**
+   * Converts the block to a dictionary representation.
+   * @returns A dictionary containing the block's attributes.
+   */
   toDict(): Record<string, any> {
-    /**
-     * Convert the block to a dictionary representation.
-     *
-     * Returns
-     * -------
-     * Dictionary containing the block's attributes.
-     */
     return {
       value: this._value,
       position: this._position,
@@ -103,8 +116,12 @@ export class BaseBlock {
     };
   }
 
+  /**
+   * Checks if two blocks are equal.
+   * @param other - The other block to compare with.
+   * @returns True if the blocks are equal, false otherwise.
+   */
   equals(other: BaseBlock): boolean {
-    /** Check if two blocks are equal. */
     if (!(other instanceof BaseBlock)) {
       return false;
     }
@@ -115,8 +132,11 @@ export class BaseBlock {
     );
   }
 
+  /**
+   * Generates a hash for the block.
+   * @returns The hash code.
+   */
   hashCode(): number {
-    /** Generate a hash for the block. */
     const valueHash = calculateHashCode(this._value);
     const branchHash = this._branch ? 1 : 0;
     if (this._position === undefined || this._position === null) {
@@ -127,13 +147,19 @@ export class BaseBlock {
     }
   }
 
+  /**
+   * Returns a string representation of the block.
+   * @returns The string representation.
+   */
   toString(): string {
-    /** Return a string representation of the block. */
     return this._value;
   }
 
+  /**
+   * Returns a detailed string representation of the block.
+   * @returns The detailed string representation.
+   */
   toRepr(): string {
-    /** Return a detailed string representation of the block. */
     return `${this.constructor.name}(value='${this._value}', position=${this._position})`;
   }
 }

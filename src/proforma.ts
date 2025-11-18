@@ -1,14 +1,27 @@
 import { GlobalModification, Modification, ModificationValue } from './modification';
 
+/**
+ * Represents a sequence ambiguity in a ProForma string.
+ */
 export class SequenceAmbiguity {
   value: string;
   position: number;
 
+  /**
+   * Initializes a SequenceAmbiguity object.
+   *
+   * @param value - The value of the sequence ambiguity.
+   * @param position - The position of the sequence ambiguity.
+   */
   constructor(value: string, position: number) {
     this.value = value;
     this.position = position;
   }
 
+  /**
+   * Returns a string representation of the sequence ambiguity.
+   * @returns The string representation.
+   */
   toString(): string {
     return `SequenceAmbiguity(value='${this.value}', position=${this.position})`;
   }
@@ -16,6 +29,9 @@ export class SequenceAmbiguity {
 
 
 
+/**
+ * A parser for ProForma 2.1 strings.
+ */
 export class ProFormaParser {
   static readonly MASS_SHIFT_PATTERN = /^[+-]\d+(\.\d+)?$/;
   //static readonly TERMINAL_PATTERN = /^(\[([^\]]+)\])+-(.*)-(\[([^\]]+)\])+$/;
@@ -27,12 +43,52 @@ export class ProFormaParser {
   static readonly BRANCH_REF_PATTERN = /^#BRANCH$/;
   //static readonly UNKNOWN_POSITION_PATTERN = /(\[([^\]]+)\])(\^(\d+))?(\?)/;
 
-
-  static parse(proformaStr: string): [string, Record<number, Modification[]>, GlobalModification[], SequenceAmbiguity[], [number | null, string | null]] {
+  /**
+   * Parses a ProForma string.
+   *
+   * @param proformaStr - The ProForma string to parse.
+   * @returns A tuple containing the base sequence, modifications, global modifications, sequence ambiguities, charge information, peptidoform name, peptidoform ion name, and compound ion name.
+   */
+  static parse(proformaStr: string): [string, Record<number, Modification[]>, GlobalModification[], SequenceAmbiguity[], [number | null, string | null], string | null, string | null, string | null] {
     let baseSequence = "";
     const modifications: Record<number, Modification[]> = {};
     const globalMods: GlobalModification[] = [];
     const sequenceAmbiguities: SequenceAmbiguity[] = [];
+
+    // ProForma 2.1: Parse naming notations (Section 8.2)
+    let peptidoformName: string | null = null;
+    let peptidoformIonName: string | null = null;
+    let compoundIonName: string | null = null;
+
+    // Extract compound ion name (>>>name)
+    if (proformaStr.startsWith("(>>>")) {
+      const endParen = this._findBalancedParen(proformaStr, 0);
+      if (endParen === -1) {
+        throw new Error("Unclosed compound ion name parenthesis");
+      }
+      compoundIonName = proformaStr.substring(4, endParen);
+      proformaStr = proformaStr.substring(endParen + 1);
+    }
+
+    // Extract peptidoform ion name (>>name)
+    if (proformaStr.startsWith("(>>")) {
+      const endParen = this._findBalancedParen(proformaStr, 0);
+      if (endParen === -1) {
+        throw new Error("Unclosed peptidoform ion name parenthesis");
+      }
+      peptidoformIonName = proformaStr.substring(3, endParen);
+      proformaStr = proformaStr.substring(endParen + 1);
+    }
+
+    // Extract peptidoform name (>name)
+    if (proformaStr.startsWith("(>")) {
+      const endParen = this._findBalancedParen(proformaStr, 0);
+      if (endParen === -1) {
+        throw new Error("Unclosed peptidoform name parenthesis");
+      }
+      peptidoformName = proformaStr.substring(2, endParen);
+      proformaStr = proformaStr.substring(endParen + 1);
+    }
 
     const getModsAtPosition = (pos: number): Modification[] => {
       if (!modifications[pos]) {
@@ -42,13 +98,24 @@ export class ProFormaParser {
     };
 
     while (proformaStr.startsWith("<")) {
-      const endBracket = proformaStr.indexOf(">");
+      let endBracket: number;
+
+      if (proformaStr.startsWith("<[")) {
+        const closingBracket = proformaStr.indexOf("]", 2);
+        if (closingBracket === -1) {
+          throw new Error("Unclosed square bracket in global modification");
+        }
+        endBracket = proformaStr.indexOf(">", closingBracket);
+      } else {
+        endBracket = proformaStr.indexOf(">");
+      }
+
       if (endBracket === -1) {
         throw new Error("Unclosed global modification angle bracket");
       }
 
       const globalModStr = proformaStr.substring(1, endBracket);
-      proformaStr = proformaStr.substring(endBracket + 1);  // Remove processed part
+      proformaStr = proformaStr.substring(endBracket + 1);
 
       if (globalModStr.includes("@")) {
         // Fixed protein modification
@@ -59,9 +126,49 @@ export class ProFormaParser {
           modValue = modPart.substring(1, modPart.length - 1);  // Remove brackets
         }
 
+        // ProForma 2.1: Parse placement control tags (Section 11.2)
+        let positionConstraint: string[] | undefined;
+        let limitPerPosition: number | undefined;
+        let colocalizeKnown = false;
+        let colocalizeUnknown = false;
+
+        if (modValue.includes('|')) {
+          const modParts = modValue.split('|');
+          const nonPlacementParts: string[] = [modParts[0]]; // First part is always the modification name
+
+          // Parse control tags and keep non-placement parts
+          for (let i = 1; i < modParts.length; i++) {
+            const part = modParts[i];
+
+            if (part.startsWith('Position:')) {
+              positionConstraint = part.substring(9).split(',');
+            } else if (part.startsWith('Limit:')) {
+              limitPerPosition = parseInt(part.substring(6));
+            } else if (part === 'CoMKP' || part === 'ColocaliseModificationsOfKnownPosition') {
+              colocalizeKnown = true;
+            } else if (part === 'CoMUP' || part === 'ColocaliseModificationsOfUnknownPosition') {
+              colocalizeUnknown = true;
+            } else {
+              // Not a placement control tag, keep it for ModificationValue
+              nonPlacementParts.push(part);
+            }
+          }
+
+          // Reconstruct modValue with non-placement parts only
+          modValue = nonPlacementParts.join('|');
+        }
+
         const targetResidues = targets.split(",");
         globalMods.push(
-          new GlobalModification(modValue, targetResidues, "fixed")
+          new GlobalModification(
+            modValue,
+            targetResidues,
+            "fixed",
+            positionConstraint,
+            limitPerPosition,
+            colocalizeKnown,
+            colocalizeUnknown
+          )
         );
       } else {
         // Isotope labeling
@@ -131,7 +238,7 @@ export class ProFormaParser {
 
     let i = 0;
     while (i < proformaStr.length && proformaStr[i] === "{") {
-      const j = proformaStr.indexOf("}", i);
+      const j = this._findBalancedCurlyBrace(proformaStr, i);
       if (j === -1) {
         throw new Error(`Unclosed curly brace at position ${i}`);
       }
@@ -413,9 +520,86 @@ export class ProFormaParser {
       }
     }
 
-    return [baseSequence, modifications, globalMods, sequenceAmbiguities, [chargeInfo[1], chargeInfo[2]]];
+    return [baseSequence, modifications, globalMods, sequenceAmbiguities, [chargeInfo[1], chargeInfo[2]], peptidoformName, peptidoformIonName, compoundIonName];
   }
 
+  /**
+   * Finds the matching closing parenthesis for an opening parenthesis at a given position.
+   *
+   * @param str - The string to search in.
+   * @param startPos - The position of the opening parenthesis.
+   * @returns The position of the matching closing parenthesis, or -1 if not found.
+   * @private
+   */
+  static _findBalancedParen(str: string, startPos: number): number {
+    let depth = 0;
+    for (let i = startPos; i < str.length; i++) {
+      if (str[i] === '(') {
+        depth++;
+      } else if (str[i] === ')') {
+        depth--;
+        if (depth === 0) {
+          return i;
+        }
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * Finds the matching closing angle bracket for an opening angle bracket at a given position.
+   *
+   * @param str - The string to search in.
+   * @param startPos - The position of the opening angle bracket.
+   * @returns The position of the matching closing angle bracket, or -1 if not found.
+   * @private
+   */
+  static _findBalancedAngleBracket(str: string, startPos: number): number {
+    let depth = 0;
+    for (let i = startPos; i < str.length; i++) {
+      if (str[i] === '<') {
+        depth++;
+      } else if (str[i] === '>') {
+        depth--;
+        if (depth === 0) {
+          return i;
+        }
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * Finds the matching closing curly brace for an opening curly brace at a given position.
+   *
+   * @param str - The string to search in.
+   * @param startPos - The position of the opening curly brace.
+   * @returns The position of the matching closing curly brace, or -1 if not found.
+   * @private
+   */
+  static _findBalancedCurlyBrace(str: string, startPos: number): number {
+    let depth = 0;
+    for (let i = startPos; i < str.length; i++) {
+      if (str[i] === '{') {
+        depth++;
+      } else if (str[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          return i;
+        }
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * Creates a modification object from a modification string.
+   *
+   * @param modStr - The modification string.
+   * @param options - The options for creating the modification.
+   * @returns The modification object.
+   * @private
+   */
   static _createModification(
     modStr: string,
     options: {
@@ -450,6 +634,9 @@ export class ProFormaParser {
 
     const modValue = new ModificationValue(modStr);
     let modType = "static";
+
+    // ProForma 2.1: Detect ion type modifications (Section 11.6)
+    const isIonType = Modification.isIonTypeModification(modStr);
 
     if (isTerminal) {
       modType = "terminal";
@@ -496,7 +683,8 @@ export class ProFormaParser {
           rangeStart,    // rangeStart
           rangeEnd,      // rangeEnd
           undefined,     // localizationScore
-          modValue       // modValue
+          modValue,      // modValue
+          isIonType      // isIonType (ProForma 2.1)
         );
       } else if (inRange) {
         return new Modification(
@@ -519,7 +707,8 @@ export class ProFormaParser {
           rangeStart,
           rangeEnd,
           undefined,
-          modValue
+          modValue,
+          isIonType      // isIonType (ProForma 2.1)
         );
       }
       return new Modification(
@@ -542,7 +731,8 @@ export class ProFormaParser {
         rangeStart,
         rangeEnd,
         undefined,
-        modValue
+        modValue,
+        isIonType      // isIonType (ProForma 2.1)
       );
     }
 
@@ -559,6 +749,10 @@ export class ProFormaParser {
         if (ambiguityMatch[3]) {  // Score is present
           localizationScore = parseFloat(ambiguityMatch[3]);
         }
+
+        // ProForma 2.1: Re-detect ion type after stripping ambiguity (Section 11.6)
+        const isIonTypeAfterStrip = Modification.isIonTypeModification(modStr);
+
         return new Modification(
           modStr,
           undefined,
@@ -579,7 +773,8 @@ export class ProFormaParser {
           rangeStart,
           rangeEnd,
           localizationScore,
-          modValue
+          modValue,
+          isIonTypeAfterStrip      // isIonType (ProForma 2.1)
         );
       } else if (ambiguityRefMatch && !ambiguityRefMatch[1].startsWith("XL")) {
         ambiguityGroup = ambiguityRefMatch[1];
@@ -606,7 +801,8 @@ export class ProFormaParser {
           rangeStart,
           rangeEnd,
           localizationScore,
-          modValue
+          modValue,
+          isIonType      // isIonType (ProForma 2.1)
         );
       }
     }
@@ -632,10 +828,17 @@ export class ProFormaParser {
       rangeStart,
       rangeEnd,
       undefined,
-      modValue
+      modValue,
+      isIonType      // isIonType (ProForma 2.1)
     );
   }
 
+  /**
+   * Parses the charge information from a ProForma string.
+   *
+   * @param proformaStr - The ProForma string to parse.
+   * @returns A tuple containing the ProForma string without the charge information, the charge value, and the ionic species.
+   */
   static parseChargeInfo(proformaStr: string): [string, number | null, string | null] {
     if (!proformaStr.includes('/')) {
       return [proformaStr, null, null];
