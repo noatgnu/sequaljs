@@ -466,7 +466,7 @@ export class ModificationValue {
     const sortedMonos = [...monosaccharides].sort((a, b) => b.length - a.length);
 
     const escapedMonos = sortedMonos.map(m => m.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'));
-    const monoPatternString = "(" + escapedMonos.join("|") + ")((\\((\\d+)\\))|\\d+)?";
+    const monoPatternString = "(" + escapedMonos.join("|") + ")((\\(([1-9]\\d*)\\))|[1-9]\\d*)?";
 
     const monoPattern = new RegExp(monoPatternString);
 
@@ -485,15 +485,29 @@ export class ModificationValue {
 
         i = closeBrace + 1;
 
+        const isAtEnd = i === glycanClean.length;
+        let countStr = '';
         if (i < glycanClean.length && glycanClean[i] === '(') {
           const closeParen = glycanClean.indexOf(')', i);
-          if (closeParen !== -1) {
-            i = closeParen + 1;
+          if (closeParen === -1) {
+            return false;
           }
+          countStr = glycanClean.substring(i + 1, closeParen);
+          if (!/^[1-9]\d*$/.test(countStr)) {
+            return false;
+          }
+          i = closeParen + 1;
         } else if (i < glycanClean.length && /\d/.test(glycanClean[i])) {
+          const startIdx = i;
           while (i < glycanClean.length && /\d/.test(glycanClean[i])) {
             i++;
           }
+          countStr = glycanClean.substring(startIdx, i);
+          if (!/^[1-9]\d*$/.test(countStr)) {
+            return false;
+          }
+        } else if (!isAtEnd) {
+          return false;
         }
         continue;
       }
@@ -502,7 +516,15 @@ export class ModificationValue {
       if (!match) {
         return false;
       }
-      i += match[0].length;
+
+      const monoLength = match[0].length;
+      const hasCount = match[2] !== undefined && match[2] !== '';
+      i += monoLength;
+
+      const isAtEnd = i === glycanClean.length;
+      if (!hasCount && !isAtEnd) {
+        return false;
+      }
     }
 
     return i === glycanClean.length;

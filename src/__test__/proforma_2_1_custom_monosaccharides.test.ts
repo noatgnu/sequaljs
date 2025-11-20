@@ -170,4 +170,31 @@ describe("ProForma 2.1: Custom Monosaccharides in Glycans (Section 10.2)", () =>
     expect(mod.modValue.pipeValues[0].isValidGlycan).toBe(true);
     expect(seq.charge).toBe(2);
   });
+
+  test("should validate glycan count requirements", () => {
+    const validCases = [
+      { glycan: "HexNAc", reason: "at end, count 1 implied" },
+      { glycan: "HexNAc2Hex", reason: "HexNAc has count 2, Hex at end" },
+      { glycan: "Hex(3)HexNAc2", reason: "explicit counts" },
+      { glycan: "{C8H13N1O5}1Hex2", reason: "custom with count, Hex with count" },
+    ];
+
+    validCases.forEach(({ glycan, reason }) => {
+      const seq = Sequence.fromProforma(`N[Glycan:${glycan}]K`);
+      expect(seq.seq[0].mods[0].modValue.pipeValues[0].isValidGlycan).toBe(true);
+    });
+  });
+
+  test("should reject invalid glycan counts", () => {
+    const invalidCases = [
+      { glycan: "HexNAcHex", reason: "HexNAc not at end, missing count" },
+      { glycan: "HexNAc0", reason: "zero count not allowed" },
+      { glycan: "{C8H13N1O5}Hex2", reason: "custom not at end, missing count" },
+    ];
+
+    invalidCases.forEach(({ glycan, reason }) => {
+      const seq = Sequence.fromProforma(`N[Glycan:${glycan}]K`);
+      expect(seq.seq[0].mods[0].modValue.pipeValues[0].isValidGlycan).toBe(false);
+    });
+  });
 });
