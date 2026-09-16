@@ -1,5 +1,8 @@
 import { GlobalModification, Modification, ModificationValue } from './modification';
 
+// Matches a global isotope token, e.g. D, T, 13C, 15N.
+const ISOTOPE_PATTERN = /^(?:[Dd]|[Tt]|\d+[A-Z][a-z]?)$/;
+
 /**
  * Represents a sequence ambiguity in a ProForma string.
  */
@@ -126,6 +129,10 @@ export class ProFormaParser {
           modValue = modPart.substring(1, modPart.length - 1);  // Remove brackets
         }
 
+        if (modValue.includes("#")) {
+          throw new Error("Fixed global modifications cannot be ambiguous, cross-linked, or branched");
+        }
+
         // ProForma 2.1: Parse placement control tags (Section 11.2)
         let positionConstraint: string[] | undefined;
         let limitPerPosition: number | undefined;
@@ -171,7 +178,12 @@ export class ProFormaParser {
           )
         );
       } else {
-        // Isotope labeling
+        // Isotope labeling: must be D, T, or an isotope number followed by an element symbol
+        // (an optional "|INFO:..." suffix is allowed and not part of the isotope token itself).
+        const isotopeToken = globalModStr.split("|")[0];
+        if (!ISOTOPE_PATTERN.test(isotopeToken)) {
+          throw new Error(`Invalid global isotope modification '${isotopeToken}'`);
+        }
         globalMods.push(new GlobalModification(globalModStr, null, "isotope"));
       }
     }
@@ -194,6 +206,9 @@ export class ProFormaParser {
               getModsAtPosition(-4).push(mod);
             }
             i += 1;
+          } else {
+            // No '?' terminator: not actually an unknown-position block, leave string as-is.
+            i = 0;
           }
           unknownPosMods.length = 0;
           break;
@@ -244,11 +259,6 @@ export class ProFormaParser {
       }
 
       const modStr = proformaStr.substring(i + 1, j);
-      if (!modStr.startsWith("Glycan:")) {
-        throw new Error(
-          `Labile modification must start with 'Glycan:', found: ${modStr}`
-        );
-      }
 
       const mod = ProFormaParser._createModification(
         modStr,
@@ -294,7 +304,7 @@ export class ProFormaParser {
 
             if (bracketDepth === 0) {
               const modString = nTerminalPart.substring(currentPos + 1, endPos - 1);
-              const nTermMod = ProFormaParser._createModification(modString, { isTerminal: true });
+              const nTermMod = ProFormaParser._createBracketModification(modString, { isTerminal: true });
               getModsAtPosition(-1).push(nTermMod);
             }
 
@@ -328,6 +338,9 @@ export class ProFormaParser {
 
       if (terminatorPos !== -1) {
         const cTerminalPart = proformaStr.substring(terminatorPos + 1);
+        if (cTerminalPart === "") {
+          throw new Error("Dangling C-terminal separator with no modification");
+        }
         proformaStr = proformaStr.substring(0, terminatorPos);
 
         // Parse C-terminal modifications
@@ -346,7 +359,7 @@ export class ProFormaParser {
 
             if (bracketDepth === 0) {
               const modString = cTerminalPart.substring(currentPos + 1, endPos - 1);
-              const cTermMod = ProFormaParser._createModification(modString, { isTerminal: true });
+              const cTermMod = ProFormaParser._createBracketModification(modString, { isTerminal: true });
               getModsAtPosition(-2).push(cTermMod);
             }
 
@@ -361,12 +374,14 @@ export class ProFormaParser {
     i = 0;
     let nextModIsGap = false;
     const rangeStack: number[] = [];
-    let currentPosition = 0;
 
     while (i < proformaStr.length) {
       const char = proformaStr[i];
 
       if (i + 1 < proformaStr.length && proformaStr.substring(i, i + 2) === "(?") {
+        if (rangeStack.length > 0) {
+          throw new Error("Sequence ambiguity must not overlap with a range modification");
+        }
         const closingParen = proformaStr.indexOf(")", i + 2);
         if (closingParen === -1) {
           throw new Error("Unclosed sequence ambiguity parenthesis");
@@ -374,7 +389,7 @@ export class ProFormaParser {
 
         const ambiguousSeq = proformaStr.substring(i + 2, closingParen);
         sequenceAmbiguities.push(
-          new SequenceAmbiguity(ambiguousSeq, currentPosition)
+          new SequenceAmbiguity(ambiguousSeq, baseSequence.length)
         );
 
         // Skip past the ambiguity notation
@@ -384,6 +399,9 @@ export class ProFormaParser {
 
       if (char === "(") {
         // Start of a range
+        if (rangeStack.length > 0) {
+          throw new Error("Overlapping range modifications are not supported");
+        }
         rangeStack.push(baseSequence.length);
         i += 1;
         continue;
@@ -396,6 +414,10 @@ export class ProFormaParser {
 
         const rangeStart = rangeStack.pop()!;
         const rangeEnd = baseSequence.length - 1;
+
+        if (rangeEnd < rangeStart) {
+          throw new Error("Empty range group '()' is not valid");
+        }
 
         // Look for modification after the range
         let j = i + 1;
@@ -593,6 +615,31 @@ export class ProFormaParser {
   }
 
   /**
+   * Creates a modification, detecting crosslink/branch reference-or-definition shape first
+   * (e.g. "#XL1", "Foo#XL1", "#BRANCH", "Foo#BRANCH") so callers outside the main sequence loop
+   * (N-terminal/C-terminal mods) classify these the same way residue-level mods do.
+   */
+  static _createBracketModification(
+    modStr: string,
+    extraOptions: { isTerminal?: boolean; isLabile?: boolean; isAmbiguous?: boolean } = {}
+  ): Modification {
+    if (ProFormaParser.CROSSLINK_REF_PATTERN.test(modStr)) {
+      return ProFormaParser._createModification(modStr, { ...extraOptions, isCrosslinkRef: true });
+    }
+    if (ProFormaParser.BRANCH_REF_PATTERN.test(modStr)) {
+      return ProFormaParser._createModification(modStr, { ...extraOptions, isBranchRef: true });
+    }
+    const crosslinkMatch = ProFormaParser.CROSSLINK_PATTERN.exec(modStr);
+    if (crosslinkMatch) {
+      return ProFormaParser._createModification(modStr, { ...extraOptions, crosslinkId: crosslinkMatch[2] });
+    }
+    if (ProFormaParser.BRANCH_PATTERN.test(modStr)) {
+      return ProFormaParser._createModification(modStr, { ...extraOptions, isBranch: true });
+    }
+    return ProFormaParser._createModification(modStr, extraOptions);
+  }
+
+  /**
    * Creates a modification object from a modification string.
    *
    * @param modStr - The modification string.
@@ -753,13 +800,15 @@ export class ProFormaParser {
         // ProForma 2.1: Re-detect ion type after stripping ambiguity (Section 11.6)
         const isIonTypeAfterStrip = Modification.isIonTypeModification(modStr);
 
+        // A labile modification keeps its "labile" type even with a location label (spec 7.9);
+        // everything else defaults to "ambiguous" as before.
         return new Modification(
           modStr,
           undefined,
           undefined,
           undefined,
-          "ambiguous",
-          false,
+          isLabile ? "labile" : "ambiguous",
+          isLabile,
           0,
           0.0,
           false,
@@ -882,13 +931,13 @@ export class ProFormaParser {
       i++;
     }
 
-    if (startDigit === i) { // No digits found
-      return [proformaStr, null, null];
+    let chargeValue: number | null = null;
+    if (startDigit !== i) {
+      chargeValue = parseInt(afterCharge.substring(startDigit, i)) * sign;
     }
 
-    const chargeValue = parseInt(afterCharge.substring(startDigit, i)) * sign;
-
-    // Check for ionic species in square brackets
+    // Check for ionic species / charge carriers in square brackets. These may appear on their
+    // own, e.g. "/[Na:z+1]", without a preceding numeric charge (section 11.5).
     let remaining = afterCharge.substring(i);
     let ionicSpecies: string | null = null;
 
@@ -914,6 +963,10 @@ export class ProFormaParser {
         ionicSpecies = remaining.substring(1, endPos);
         remaining = remaining.substring(endPos + 1);
       }
+    }
+
+    if (chargeValue === null && ionicSpecies === null) {
+      return [proformaStr, null, null];
     }
 
     // Reconstruct the string without charge information

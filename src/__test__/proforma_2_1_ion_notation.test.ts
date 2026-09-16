@@ -42,11 +42,12 @@ describe("ProForma 2.1: Ion Notation (Section 11.6)", () => {
     const testCases = [
       { unimodId: "UNIMOD:140", isIon: true, name: "a-type-ion" },
       { unimodId: "UNIMOD:2132", isIon: true, name: "b-type-ion" },
-      { unimodId: "UNIMOD:4", isIon: true, name: "c-type-ion" },
-      { unimodId: "UNIMOD:24", isIon: true, name: "x-type-ion" },
-      { unimodId: "UNIMOD:2133", isIon: true, name: "y-type-ion" },
-      { unimodId: "UNIMOD:23", isIon: true, name: "z-type-ion" },
+      { unimodId: "UNIMOD:2141", isIon: true, name: "c-type-ion" },
+      { unimodId: "UNIMOD:2142", isIon: true, name: "x-type-ion" },
+      { unimodId: "UNIMOD:2143", isIon: true, name: "z-type-ion" },
       { unimodId: "UNIMOD:21", isIon: false, name: "Phospho" },
+      { unimodId: "UNIMOD:4", isIon: false, name: "Carbamidomethyl" },
+      { unimodId: "UNIMOD:24", isIon: false, name: "Propionamide" },
     ];
 
     for (const { unimodId, isIon, name } of testCases) {
@@ -60,7 +61,7 @@ describe("ProForma 2.1: Ion Notation (Section 11.6)", () => {
     const testCases = [
       { unimodId: "U:140", isIon: true },
       { unimodId: "U:2132", isIon: true },
-      { unimodId: "U:4", isIon: true },
+      { unimodId: "U:2141", isIon: true },
       { unimodId: "U:21", isIon: false }, // Phospho
     ];
 

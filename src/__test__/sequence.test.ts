@@ -683,24 +683,25 @@ describe('ProForma', () => {
   });
 
   test('multi chain with chimeric', () => {
+    // "+" is the outermost separator (grammar: peptidoformIonSet = {peptidoformIon, "+"},
+    // peptidoformIon), so this is 3 chimeric peptidoform ions, the middle one itself a
+    // "//"-joined 2-chain ion.
     const inputStr = 'PEP/1+QRS/2//QWR/3+AAC/4';
     const seq = Sequence.fromProforma(inputStr);
 
-    // Check multi-chain properties
-    expect(seq.isMultiChain).toBe(true);
-    expect(seq.chains.length).toBe(2);
+    expect(seq.isChimeric).toBe(true);
+    expect(seq.peptidoforms.length).toBe(3);
 
-    // Check first chain is chimeric
-    expect(seq.chains[0].isChimeric).toBe(true);
-    expect(seq.chains[0].peptidoforms.length).toBe(2);
-    expect(seq.chains[0].toStrippedString()).toBe('PEP');
-    expect(seq.chains[0].peptidoforms[1].toStrippedString()).toBe('QRS');
+    expect(seq.peptidoforms[0].toStrippedString()).toBe('PEP');
+    expect(seq.peptidoforms[0].charge).toBe(1);
 
-    // Check second chain is chimeric
-    expect(seq.chains[1].isChimeric).toBe(true);
-    expect(seq.chains[1].peptidoforms.length).toBe(2);
-    expect(seq.chains[1].toStrippedString()).toBe('QWR');
-    expect(seq.chains[1].peptidoforms[1].toStrippedString()).toBe('AAC');
+    expect(seq.peptidoforms[1].isMultiChain).toBe(true);
+    expect(seq.peptidoforms[1].chains.length).toBe(2);
+    expect(seq.peptidoforms[1].chains[0].toStrippedString()).toBe('QRS');
+    expect(seq.peptidoforms[1].chains[1].toStrippedString()).toBe('QWR');
+
+    expect(seq.peptidoforms[2].toStrippedString()).toBe('AAC');
+    expect(seq.peptidoforms[2].charge).toBe(4);
   });
 
   test('charge representation', () => {

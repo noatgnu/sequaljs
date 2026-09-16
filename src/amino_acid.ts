@@ -19,12 +19,16 @@ export class AminoAcid extends BaseBlock {
    * @param mass - The mass of the amino acid. If not provided, inferred from AA_mass dictionary
    */
   constructor(value: string, position?: number, mass?: number) {
-    if (!(value in AA_mass) && mass === undefined) {
-      throw new Error(`Unknown amino acid '${value}' and no mass provided`);
+    let normalized = value;
+    if (mass === undefined) {
+      normalized = value.toUpperCase();
+      if (!(normalized in AA_mass)) {
+        throw new Error(`Unknown amino acid '${value}' and no mass provided`);
+      }
     }
 
-    const inferred_mass = mass !== undefined ? mass : AA_mass[value];
-    super(value, position, false, inferred_mass);
+    const inferred_mass = mass !== undefined ? mass : AA_mass[normalized];
+    super(normalized, position, false, inferred_mass);
   }
 
   /**

@@ -114,7 +114,7 @@ describe('ProFormaParser', () => {
       expect(sequence).toBe('PEPTIDE');
       expect(ambiguities.length).toBe(1);
       expect(ambiguities[0].value).toBe('AB');
-      expect(ambiguities[0].position).toBe(0);
+      expect(ambiguities[0].position).toBe(3);
     });
   });
 

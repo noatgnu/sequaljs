@@ -1,0 +1,366 @@
+import { Sequence } from "../sequence";
+
+// referenceCorpusPositive and referenceCorpusNegative are transcribed verbatim from the
+// [proforma] positive/negative arrays in grammar/test.toml at
+// https://github.com/HUPO-PSI/ProForma (the spec's own generated-parser test corpus).
+export const referenceCorpusPositive: string[] = [
+  `(?DQ)NGTWEM[Oxidation]ESNENFEGYM[Oxidation]K`,
+  `(?N)NGTWEM[Oxidation]ESNENFEGYM[Oxidation]K`,
+  `(?VCH)AT`,
+  `(>>>Isoforms of peptides)PEP[Oxidation]TIDE+PEPTIDE[Oxidation]`,
+  `(>>>Trastuzumab Fab and coeluting Fc)(>>Fab)(>Heavy chain)EVQLVESGGGLVQPGGSLRLSC[M:l-cystine (cross-link)#XL1]AASGFNIKDTYIHWVRQAPGKGLEWVARIYPTNGYTRYADSVKGRFTISADTSKNTAYLQMNSLRAEDTAVYYC[#XL1]SRWGGDGFYAMDYWGQGTLVTVSSASTKGPSVFPLAPSSKSTSGGTAALGC[M:l-cystine (cross-link)#XL2]LVKDYFPEPVTVSWNSGALTSGVHTFPAVLQSSGLYSLSSVVTVPSSSLGTQTYIC[#XL2]NVNHKPSNTKVDKKVEPKSC[M:l-cystine (cross-link)#XL3]DKT//(>Light chain)DIQMTQSPSSLSASVGDRVTITC[M:l-cystine (cross-link)#XL4]RASQDVNTAVAWYQQKPGKAPKLLIYSASFLYSGVPSRFSGSRSGTDFTLTISSLQPEDFATYYC[#XL4]QQHYTTPPTFGQGTKVEIKRTVAAPSVFIFPPSDEQLKSGTASVVC[M:l-cystine (cross-link)#XL5]LLNNFYPREAKVQWKVDNALQSGNSQESVTEQDSKDSTYSLSSTLTLSKADYEKHKVYAC[#XL5]EVTHQGLSSPVTKSFNRGEC[#XL3]+(>Fc)HTCPPCPAPELLGGPSVFLFPPKPKDTLMISRTPEVTCVVVDVSHEDPEVKFNWYVDGVEVHNAKTKPREEQYNSTYRVVSVLTVLHQDWLNGKEYKCKVSNKALPAPIEKTISKAKGQPREPQVYTLPPSREEMTKNQVSLTCLVKGFYPSDIAVEWESNGQPENNYKTTPPVLDSDGSFFLYSKLTVDKSRWQQGNVFSCSVMHEALHNHYTQKSLSLSPGK`,
+  `(>>IGHG1)TPEVTC[X:Disulfide#XL1]VVVDVSHEDPEV//EYKC[#XL1]KPEP[Oxidation]TIDE/2`,
+  `(>Heavy chain)EVQLVESG`,
+  `(>Interesting ]][ yes | [valid] #description_not_tag)PEPTIDE`,
+  `(>My (very) nice peptide)PEPTIDE`,
+  `(>P07225 Vitamin K-dependent protein S OS=Homo sapiens OX=9606 GN=PROS1 PE=1 (SV=1) RANGE=12..42)GGK[xlink:dss[138]#XLDSS]IEVQLK//(>P07225 Vitamin K-dependent protein S OS=Homo sapiens OX=9606 GN=PROS1 PE=1 SV=1)KVESELIK[#XLDSS]PINPR`,
+  `(>Trypsin)AANSIPYQVSLNS+(>Keratin)AKEQFERQTA`,
+  `(PEP)[Oxidation#1(0.95)]M[#1(0.05)]AT`,
+  `[#1]-FEEAQ[deamidated#1]A`,
+  `[+1]-A[+1]-[+1]`,
+  `[+100.00#g1]?EN(?G[#g1]G[#g1]E[#g1])KL`,
+  `[+42#g1]?ELV[INFO:newly discovered|#g1]I[INFO:awesome|#g1]S`,
+  `[Acetyl]-EKDTYL`,
+  `[Acetyl][Carbamyl]-QPEPTIDE`,
+  `[Carbamyl]-QPEPTIDE`,
+  `[Cation:Al[III]]?PEPTIDE/2`,
+  `[deamidated#1]-FEEAQ[#1]A`,
+  `[dehydro]^3?[gln->pyro-glu]-QSC`,
+  `[Formula:Zn:z+2|Position:N-term,C-term]^5[Carbamidomethyl|Position:C]^5?MDPETCPCPSGGSCTCADSCKCEGCKCTSCKKSCCSCCPAECEKCAKDCVCKGGEAAEAEAEKCSCCQ`,
+  `[INFO:FLANK:ELV]-PRECIS-[INFO:FLANK:ELY]`,
+  `[iTRAQ4plex]-EM[Oxidation]EVNES[Phospho]PEK`,
+  `[iTRAQ4plex]-EM[Oxidation]EVNES[Phospho]PEK[iTRAQ4plex]-[Methyl]`,
+  `[iTRAQ4plex]-EM[U:Oxidation]EVNES[Phospho]PEK[iTRAQ4plex]-[Methyl]`,
+  `[Oxidation]?PEMAT`,
+  `[Oxidation]?Q[Gln->pyro-Glu]NHEEEMNALR-[Methyl]`,
+  `[Oxidation]^4?PEPTIDE`,
+  `[Oxidation#1][Oxidation#2]?PTIM[#1][#2]ERM[#1][#2]ERM[#1][#2]ERM[#1][#2]DE`,
+  `[Oxidation|CoMKP]?PEPT[Phospho]IDE`,
+  `[Oxidation|Limit:2]^4?PEPTIDE`,
+  `[Phospho]?EM[Oxidation]EVTSESPEK`,
+  `[Phospho][Phospho]?[Acetyl]-EM[Oxidation]EVTSESPEK`,
+  `[Phospho]^2?[Acetyl]-EM[Oxidation]EVTSESPEK`,
+  `[Phospho#s1]?EM[Oxidation]EVT[#s1(0.01)]S[#s1(0.09)]ES[#s1(0.90)]PEK`,
+  `[U:iTRAQ4plex]-EM[U:Oxidation]EVNES[U:Phospho]PEK[U:iTRAQ4plex]-[U:Methyl]/3`,
+  `[z-type-ion]-SFFLYSKLTV-[b-type-ion]/2`,
+  `{Glycan:Hex}[iTRAQ4plex]-EM[Oxidation]EVNES[Phospho]PEK[iTRAQ4plex]-[Methyl]`,
+  `{Glycan:Hex}[iTRAQ4plex]-EM[Oxidation]EVNES[Phospho]PEK[iTRAQ4plex]`,
+  `{Glycan:Hex}{Glycan:NeuAc}EMEVNESPEK`,
+  `{Glycan:Hex}EM[Oxidation]EVNES[Phospho]PEK[iTRAQ4plex]`,
+  `{Glycan:Hex}EM[U:Oxidation]EVNES[Phospho]PEK[iTRAQ4plex]`,
+  `{Glycan:Hex5HexNAc5#g1}PEPSTAT[#g1]IS[#g1]T[#g1]ICS[#g1]S[#g1]T[#g1]RIKES[#g1]IT[#g1]ES[#g1]`,
+  `{Hex}[iTRAQ4plex]-EM[Oxidation]EVNES[Phospho]PEK[iTRAQ4plex]`,
+  `{Hex}{NeuAc}EMEVNESPEK`,
+  `{Hex}EM[Oxidation]EVNES[Phospho]PEK[iTRAQ4plex]`,
+  `{Hex#g1}{Sulfo#s}[#g1]-PN[#g1]KS[#s]C[#s]M`,
+  `{HexNAc#g1}PEPN[#g1]ITE`,
+  `{Phospho}EM[Oxidation]EVNESPEK[iTRAQ4plex]`,
+  `{Phospho}EM[U:Oxidation]EV`,
+  `{Phospho}LAADDFRTK`,
+  `{Phospho#g1}EM[U:Oxidation]EVS[#g1]`,
+  `{Sulfo#s}HT[#s]T[#s]S[#s]FRGC[#s]`,
+  `<[Amidated]@C-term>QATPEILTWCNSIGCLKG`,
+  `<[Carbamidomethyl]@C>ATPEILTCNSIGCLK`,
+  `<[Gln->pyro-Glu]@N-term:Q><[Oxidation]@W,C-term:G>QATPEILTWCNSIGCLKG`,
+  `<[MOD:01090]@C>[Acetyl]-EM[Oxidation]EVTSECSPEK`,
+  `<[MOD:01090]@C>[Phospho]?EM[Oxidation]EVTSECSPEK`,
+  `<[MOD:01090]@C>ATPEILTCNSIGCLK`,
+  `<[Oxidation]@C,M>EPELVESGGGLAQP`,
+  `<[Oxidation]@C,M>MTPEILTCNSIGCLK`,
+  `<[Oxidation]@M><[Deamidated]@N>AAMNM`,
+  `<[Oxidation]@M>ATPEMILTCMGCLK`,
+  `<[Oxidation]@W,C-term:G>QATPEILTWCNSIGCLKG`,
+  `<[S-carboxamidomethyl-L-cysteine]@C>ATPEILTCNSIGCLK`,
+  `<[TMT6plex]@K,N-term:A,N-term:B>ATPEILTCNSIGCLK`,
+  `<[TMT6plex]@K,N-term:A>ATPEILTCNSIGCLK`,
+  `<[TMT6plex]@K,N-term>ATPEILTCNSIGCLK`,
+  `<[TMT6plex]@W,N-term>ATPEILTWNSIGCLK`,
+  `<12C>ATPEILTVNS[Formula:C-1[13C1]]IGQLK`,
+  `<12C>ATPEILTVNSIGQLK`,
+  `<13C><15N>ATPEILTVNSIGQLK`,
+  `<13C>ATPEILTVNSIGQLK`,
+  `<13C>PEPTIDE`,
+  `<15N>ATPEILTVNSIGQLK`,
+  `<2H>ATPEILTVNSIGQLK`,
+  `<D>ATPEILTVNSIGQLK`,
+  `A(AAAA)[+1][+2]`,
+  `A[+1]`,
+  `A[+1#XL1]A//A[#XL1]A/2`,
+  `A[X:DSS#XL1]//B[#XL1]+C[X:DSS#XL1]//D[#XL1]`,
+  `A//GIVEQC[MOD:00034#XL3]C[#XL1]TSIC[#XL3]SLYQLENYC[#XL2]N`,
+  `AA`,
+  `AA(?AA)`,
+  `AA(?AA)AA`,
+  `AA[+1]`,
+  `AA+AA`,
+  `AAA[+1#XL1]//CTCA[#XL1]/3+QWERK/9`,
+  `AAA/2+ABC/3`,
+  `AAHCFKUOT`,
+  `AHAM[#1]TEG-[oxidation#1]`,
+  `AHAM[oxidation#1]TEG-[#1]`,
+  `AVTKYTSSK[GG]`,
+  `AVTKYTSSK[MOD:00134#BRANCH]//AGKQLEDGRTLSDYNIQKESTLHLVLRLRG-[#BRANCH]`,
+  `AVTKYTSSK[MOD:00134#BRANCH]//GG-[#BRANCH]`,
+  `BZJX[+1]`,
+  `E[Glu->pyro-Glu]KDTYL`,
+  `ED[MOD:00093#BRANCH]//D[#BRANCH]ATR`,
+  `EDTAVYYC(SRWGGDGFAMDY)[Info:CDR3]WGQGTL`,
+  `ELN[Glycan:Hex1|INFO:WURCS=2.0/1,1,0/[a1211h-1b_1-4]/1/]IS`,
+  `ELV[+42#g1|INFO:newly discovered]I[#g1|INFO:awesome]S`,
+  `ELV[info:AnyString]IS`,
+  `ELV[INFO:AnyString]IS`,
+  `ELV[INFO:https://doi.org/10.1021/acs.jproteome.1c00771]ISK`,
+  `ELV[INFO:xxxxx]IS`,
+  `ELVIS[Obs:+79.966|Phospho|Sulfo]K`,
+  `ELVIS[Phospho|+79.966331]K`,
+  `ELVIS[Phospho|INFO:newly discovered]K`,
+  `ELVIS[Phospho|INFO:newly discovered|INFO:Created by software Tool1]K`,
+  `ELVIS[Phospho|INFO:newly discovered|INFO:Created on 2021-06]K`,
+  `ELVIS[Phospho|INFO:newly discovered|INFO:really awesome [new-to-science] #cool]K`,
+  `ELVIS[Phospho|INFO:newly discovered|INFO:really awesome]K`,
+  `ELVIS[Phospho|O-phospho-L-serine]K`,
+  `ELVIS[Phospho|O-phospho-L-serine|Obs:+79.966]K`,
+  `ELVIS[Phospho|Obs:+79.978]K`,
+  `ELVIS[U:Phospho|+79.966331]K`,
+  `ELVIS[U:Phospho|Obs:+79.978]K`,
+  `ELVIS[UNIMOD:21|MOD:00046]K`,
+  `ELVIS[UNIMOD:21|Phospho]K`,
+  `EM[+15.9949]EVEES[+79.9663]PEK`,
+  `EM[+15.995]EVEES[-18.01]PEK`,
+  `EM[L-methionine sulfoxide]EVEES[O-phospho-L-serine]PEK`,
+  `EM[M:L-methionine sulfoxide]EVEES[M:O-phospho-L-serine]PEK`,
+  `EM[MOD:00719]EVEES[MOD:00046]PEK`,
+  `EM[Oxidation]EVE[Cation:Mg[II]]ES[Phospho]PE[Info:comment[with[bracket[]s]]]K`,
+  `EM[Oxidation]EVE[Cation:Mg[II]]ES[Phospho]PEK`,
+  `EM[Oxidation]EVEES[O-phospho-L-serine]PEK`,
+  `EM[Oxidation]EVEES[Phospho]PEK`,
+  `EM[Oxidation]EVT[#g1(0.01)]S[#g1(0.09)]ES[Phospho#g1(0.90)]PEK`,
+  `EM[Oxidation]EVT[#g1]S[#g1]ES[Phospho#g1][Formyl]PEK`,
+  `EM[Oxidation]EVT[#g1]S[#g1]ES[Phospho#g1][Formyl#g2]PEK[#g2]`,
+  `EM[Oxidation]EVT[#g1]S[#g1]ES[Phospho#g1]PEK`,
+  `EM[R:L-methionine sulfone]EM[RESID:AA0581]`,
+  `EM[R:L-methionine sulfone]EVEES[O-phospho-L-serine]PEK`,
+  `EM[RESID:AA0581]EVEES[RESID:AA0037]PEK`,
+  `EM[U:+15.994915]EVEES[Obs:+79.978]PEK`,
+  `EM[U:+15.994915]EVEES[U:+79.966331]PEK`,
+  `EM[U:Oxidation]EVEES[M:O-phospho-L-serine]PEK`,
+  `EM[U:Oxidation]EVEES[U:Phospho]PEK`,
+  `EM[U:Oxidation]EVEES[U:Phospho]PEK/3`,
+  `EM[UNIMOD:35]EVEES[UNIMOD:56]PEK`,
+  `EMEVEESPEK/2`,
+  `EMEVEESPEK/2+ELVISLIVER/3`,
+  `EMEVEESPEK+ELVISLIVER`,
+  `EMEVTK[X:DSS#XL1]SESPEK`,
+  `EMEVTK[XLMOD:02001]SESPEK`,
+  `EMEVTK[XLMOD:02001#XL1]SESPEK`,
+  `EMEVTK[XLMOD:02001#XL1]SESPEK[#XL1]`,
+  `EMK[XLMOD:02000#XL1]EVTKSE[XLMOD:02010#XL2]SK[#XL1]PEK[#XL2]AR`,
+  `EN(?G[+100.00]GE)KL`,
+  `EN(?G[+100.00#g1]G[#g1]E[#g1])KL`,
+  `EN(?GGE)[+100.00]KL`,
+  `EN(?GGE)KL`,
+  `EN(?GGEX[+100.00])KL`,
+  `ENFEG(?DQ)NGTWEM[Oxidation]ESNYM[Oxidation]K`,
+  `ENFEG(?N)NGTWEM[Oxidation]ESNYM[Oxidation]K`,
+  `ENX[+243.086]KL`,
+  `EPELVESGGGLAQP`,
+  `ETFGD[MOD:00093#BRANCH]//R[#BRANCH]ATER`,
+  `EVTK[X:formaldehyde]LEK[XLMOD:02041]SEF`,
+  `EVTK[X:formaldehyde#XL1]L//EK[#XL1]SEF`,
+  `EVTK[X:formaldehyde#XL1]LEK[#XL1]SEF`,
+  `EVTSEKC[Dehydro]LEMSC[Dehydro]EFD`,
+  `EVTSEKC[Dehydro#XL1]LEMSC[#XL1][Dehydro]EFD`,
+  `EVTSEKC[Dehydro#XL1]LEMSC[#XL1]EFD`,
+  `EVTSEKC[half cystine]LEMSC[half cystine]EFD`,
+  `EVTSEKC[L-cystine (cross-link)#XL1]LEMSC[#XL1]EFD`,
+  `EVTSEKC[MOD:00034#XL1]LEMSC[#XL1]EFD`,
+  `EVTSEKC[MOD:00798]LEMSC[MOD:00798]EFDEVTSEKC[MOD:00798]LEMSC[MOD:00798]EFD`,
+  `EVTSEKC[UNIMOD:2020#XL1]LEMSC[#XL1]EFD`,
+  `EVTSEKC[UNIMOD:374]LEMSC[UNIMOD:374]EFD`,
+  `EVTSEKC[UNIMOD:374#XL1]LEMSC[#XL1]EFD`,
+  `EVTSEKC[X:Disulfide#XL1]LEMSC[#XL1]EFD`,
+  `EVTSEKC[Xlink:Disulfide#XL1]LEK//MSC[#XL1]EFDR`,
+  `EVTSEKC[Xlink:Disulfide#XL1]LEMSC[#XL1]EFD`,
+  `EVTSEKC[XLMOD:02009#XL1]LEMSC[#XL1]EFD`,
+  `FVNQHLC[MOD:00034#XL1]GSHLVEALYLVC[MOD:00034#XL2]GERGFFYTPK`,
+  `FVNQHLC[MOD:00034#XL1]GSHLVEALYLVC[MOD:00034#XL2]GERGFFYTPKA//GIVEQC[MOD:00034#XL3]C[#XL1]TSIC[#XL3]SLYQLENYC[#XL2]N`,
+  `HGW-[Methyl]`,
+  `HGWVRQAPG[Oxidation]`,
+  `MPGLVDSNPAPPESQEKKPLK(PCCACPETKKARDACIIEKGEEHCGHLIEAHKECMRALGFKI)[Oxidation][Oxidation][half cystine][half cystine]`,
+  `MPGLVDSNW[Oxidation][Carboxymethyl]PAPPESQE`,
+  `MPGNW[Oxidation][Carboxymethyl]PESQE`,
+  `NEEYN[G:G59626AS]K`,
+  `NEEYN[Glycan:{+204.068}5HexNAc4NeuAc1]K`,
+  `NEEYN[Glycan:{C6H12N4O2S1}5HexNAc4NeuAc1]K`,
+  `NEEYN[Glycan:Hex4{C8H13N1O5Na1:z+1}1HexNAc4NeuAc1]K`,
+  `NEEYN[Glycan:Hex5HexNAc4NeuAc1]K`,
+  `NEEYN[Glycan:Hex5HexNAc4NeuAc1{C8H13[15N1]O5}1]K`,
+  `NEEYN[Glycan:Hex5HexNAc4NeuAc1{C8H13N1O5Na1:z+1}1]K`,
+  `NEEYN[GNO:G59626AS]K`,
+  `NEEYN+SEQUEN`,
+  `P(EP)[Oxidation#1(0.95)]M[#1(0.05)]AT`,
+  `PE(PM)[Oxidation]AT`,
+  `PE[Cation:Al[III]]PTIDE/2`,
+  `PE[Formula:Al H-3:z+1]PTIDE/[H:z+1]`,
+  `PE[Formula:Al H-3:z+1]PTIDE/1`,
+  `PEL[(2S,4R)-5-hydroxyleucine]TIDE`,
+  `PEL[Monohydroxylated leucine]TIDE`,
+  `PEL[Oxidation]TIDE`,
+  `PEM[+15.995]AT`,
+  `PEM[+15.995|Oxidation]AT`,
+  `PEM[Formula:[17O1]]AT`,
+  `PEM[Formula:O]AT`,
+  `PEM[MOD:00425]AT`,
+  `PEM[monohydroxylated residue]AT`,
+  `PEM[Oxidation]AT`,
+  `PEM[U:+15.995]AT`,
+  `PEM[UNIMOD:35]AT`,
+  `PEP[Oxidation]TIDE`,
+  `PEP[Oxidation#1(0.95)]M[#1(0.05)]AT`,
+  `PEP[Oxidation#1]M[#1]AT`,
+  `PEPM[U:Oxidation]AS[M:O-phospho-L-serine]`,
+  `PEPT[Formula:Zn:z+2]IDE/[Na:z+1^2]`,
+  `PEPTI(MERMERMERM)[+32|Position:E]PEPTIDE`,
+  `PEPTI(MERMERMERM)[Oxidation|Position:M][Oxidation|Position:M]DE`,
+  `PEPTID-[a-type-ion]/1`,
+  `PEPTID-[b-type-ion]/1`,
+  `PEPTID[Formula:H-1C-1O-2|INFO:d-ion]-[a-type-ion]`,
+  `PEPTIDE/[[15N1]H4:z+1]`,
+  `PEPTIDE/[Al H-3:z+1,H:z+1]`,
+  `PEPTIDE/[Na:z+1,H:z+1]`,
+  `PEPTIDE/[Na:z+1]`,
+  `PEPTIDE/[Na:z+1^2]`,
+  `PEPTIDE/2`,
+  `PEPTIDE+OTHERPEPTIDE`,
+  `PEPTIDEG-[Methyl]`,
+  `PEPTIDEG-[Methyl][Amidated]`,
+  `PEPTIEM[Dioxidation][Oxidation]EMEP`,
+  `PETIE(MEME)[Dioxidation|CoMUP][Oxidation|CoMUP]P`,
+  `PETIEM[Dioxidation#1][Oxidation#2]REM[#1][#2]REM[#2]RM[#1]PEPTIDE`,
+  `PEX[+147.035]AT`,
+  `PIE(MEME)[Dioxidation|CoMUP][Oxidation|CoMUP]PTE`,
+  `PR[#g1(0.91)]T(EC[Carbamidomethyl]FRMS)[+19.05233#g1(0.09)]ISK`,
+  `PROT(EOC[Carbamidomethyl]FORMS)[+19.0523]ISK`,
+  `PROT(EOSFORMS)[+19.0523]ISK`,
+  `PRT(EC[Carbamidomethyl]FRMS)[+19.0523]ISK`,
+  `PRT(ESFRMS)[+19.0523]ISK`,
+  `PRT(ESFRMS)[+19.0523#g1(0.01)]ISK[#g1(0.99)]`,
+  `PTI(MERMERME)[+32|Position:E]PTIDE`,
+  `QATPEILTWCNSIGCLKG-[Amidated]`,
+  `RTAAX[+367.0537]WT`,
+  `SEK[XLMOD:02001#XL1]UENCE//EMEVTK[#XL1]SESPEK`,
+  `SEK[XLMOD:02001#XL1]UENCE//EMEVTK[XLMOD:02001#XL1]SESPEK`,
+  `SEK[XLMOD:09070]UENC`,
+  `SEK[XLMOD:1711]UENC`,
+  `SEQUEN-[b-type-ion]`,
+  `SEQUEN[Formula:[13C2][12C-2]H2N]CE`,
+  `SEQUEN[Formula:[13C2]C-2H2N]CE`,
+  `SEQUEN[Formula:[13C2]CH6N]CE`,
+  `SEQUEN[Formula:C12 H20 O2]CE`,
+  `SEQUEN[Formula:C12H20O2]CE`,
+  `SEQUEN[Formula:HN-1O2]CE`,
+  `SEQUEN[Formula:Zn1:z+2]CE`,
+  `SEQUEN[Glycan:{+203.079}1Hex2]CE`,
+  `SEQUEN[Glycan:{C8H13[15N1]O5}1Hex2]CE`,
+  `SEQUEN[Glycan:{C8H13N1O5}1Hex2]CE`,
+  `SEQUEN[Glycan:{C8H13N1O5Na1:z+1}1Hex2]CE`,
+  `SEQUEN[Glycan:HexNAc]CE`,
+  `SEQUEN[Glycan:HexNAc1Hex2]CE`,
+  `SEQUEN/[Na:z+1,H:z+1]`,
+  `SEQUEN/2`,
+  `SFFLYSKLTV-[b-type-ion]/2`,
+  `SFFLYSKLTVDKSRWQQGNV/3`,
+  `UWAKJDNLASNOIJPojkjjdakjn[U:Oxidation]`,
+  `V(?VCH)AT`,
+  `X[+379.147]UEX[+365.113]`,
+  `YPVLN[GNO:G62765YT]VTMPN[GNO:G02815KT]NSNGKFDK`,
+  `[Acetyl][Acetyl][Carbamyl]-QPEPTIDE`,
+  `PEPTIDEG-[Methyl][Amidated][INFO:A lot of C terminal mods]`,
+];
+
+export const referenceCorpusNegative: string[] = [
+  `<D>A[UNIMODIFY:+2]+<D>A`,
+  `A[+1]-`,
+  `[Acetyl]-[Phospho]^2?EM[Oxidation]EVTSESPEK`,
+  `PRT(EC[Carbamidomethyl]FRMS)[+19.0523]^2ISK`,
+  `P(RT(ESFRMS)[+19.0523]IS)[+19.0523]K`,
+  `MPGLVDSNPAPPESQEKKPLK(PCCACPETKKARDACIIEKGEEHCGHLIEAHKECMRALGFKI)[Oxidation]^2[half cystine][half cystine]`,
+  `ELVIS[Phospho|INFO:newly]discovered]K`,
+  `<[TMT6plex]>AA`,
+  `<[TMT6plex#g1]@A>AA`,
+  `<[TMT6plex#XL1]@A>AA`,
+  `<[TMT6plex#BRANCH]@A>AA`,
+  `AA(?A(A)[+1])AA`,
+  `AA(A(?A))[+1]AA`,
+  `()[Dehydro]S`,
+  `S()[Dehydro]`,
+  `AA[+1#xl1]/2//AA[#XL1]`,
+  `(>Tryps)in)AANSIPYQVSLNS+(>Keratin)AKEQFERQTA`,
+  `(>Tryps(in)AANSIPYQVSLNS+(>Keratin)AKEQFERQTA`,
+  `(>Trin)AANSIP[+1#XL1]YQVSLNS//(>>Keratin)AKEQ[#XL1]FERQTA`,
+];
+
+// countLooseLetters counts ASCII letters outside of (), [], {} - a rough upper bound on how
+// many residues a ProForma string should parse to. Used only to catch silent truncation to an
+// empty/short result; it's fine for this to overcount (e.g. counting isotope letters in <13C>).
+function countLooseLetters(s: string): number {
+  let count = 0;
+  let depth = 0;
+  for (const char of s) {
+    if (char === "(" || char === "[" || char === "{") {
+      depth++;
+    } else if (char === ")" || char === "]" || char === "}") {
+      if (depth > 0) depth--;
+    } else if (depth === 0 && /[A-Za-z]/.test(char)) {
+      count++;
+    }
+  }
+  return count;
+}
+
+// totalResidueCount sums residues across every chain/peptidoform member of seq.
+function totalResidueCount(seq: Sequence): number {
+  let total = seq.seq.length;
+  if (seq.isMultiChain) {
+    for (let i = 1; i < seq.chains.length; i++) {
+      total += seq.chains[i].seq.length;
+    }
+  }
+  if (seq.isChimeric) {
+    for (let i = 1; i < seq.peptidoforms.length; i++) {
+      total += seq.peptidoforms[i].seq.length;
+    }
+  }
+  return total;
+}
+
+// Known incomplete stubs from the reference repo's own test.toml: the full, non-truncated
+// version of this example is a separate positive entry that does resolve its labels.
+const referenceCorpusPositiveIncomplete = new Set<string>([
+  "A//GIVEQC[MOD:00034#XL3]C[#XL1]TSIC[#XL3]SLYQLENYC[#XL2]N",
+]);
+
+describe("Reference corpus (HUPO-PSI/ProForma grammar/test.toml)", () => {
+  describe("positive", () => {
+    for (const s of referenceCorpusPositive) {
+      test(s, () => {
+        if (referenceCorpusPositiveIncomplete.has(s)) {
+          return;
+        }
+        const seq = Sequence.fromProforma(s);
+        if (countLooseLetters(s) > 0) {
+          expect(totalResidueCount(seq)).toBeGreaterThan(0);
+        }
+        expect(() => Sequence.fromProforma(seq.toProforma())).not.toThrow();
+      });
+    }
+  });
+
+  describe("negative", () => {
+    for (const s of referenceCorpusNegative) {
+      test(s, () => {
+        expect(() => Sequence.fromProforma(s)).toThrow();
+      });
+    }
+  });
+});

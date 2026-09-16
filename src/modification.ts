@@ -1068,9 +1068,9 @@ export class Modification extends BaseBlock {
     this._isAmbiguityRef = isAmbiguityRef;
     this._ambiguityGroup = ambiguityGroup || null;
     this.inRange = inRange;
-    this.rangeStart = rangeStart || null;
-    this.rangeEnd = rangeEnd || null;
-    this.localizationScore = localizationScore || null;
+    this.rangeStart = rangeStart ?? null;
+    this.rangeEnd = rangeEnd ?? null;
+    this.localizationScore = localizationScore ?? null;
     this._modValue = modValue || new ModificationValue(value, mass);
 
     const validModTypes = new Set([
@@ -1098,7 +1098,7 @@ export class Modification extends BaseBlock {
 
     // ProForma 2.1: Initialize placement controls (Section 11.2)
     this._positionConstraint = positionConstraint || null;
-    this._limitPerPosition = limitPerPosition || null;
+    this._limitPerPosition = limitPerPosition ?? null;
     this._colocalizeKnown = colocalizeKnown;
     this._colocalizeUnknown = colocalizeUnknown;
 
@@ -1440,14 +1440,13 @@ export class Modification extends BaseBlock {
       return true;
     }
 
-    // Known Unimod ion type IDs
+    // Known Unimod ion type IDs. y-type-ion has no Unimod accession per spec.
     const ionTypeUnimodIds = new Set([
       '140',   // a-type-ion
       '2132',  // b-type-ion
-      '4',     // c-type-ion
-      '24',    // x-type-ion
-      '2133',  // y-type-ion
-      '23',    // z-type-ion
+      '2141',  // c-type-ion
+      '2142',  // x-type-ion
+      '2143',  // z-type-ion
     ]);
 
     // Check for Unimod references (UNIMOD:id or U:id)

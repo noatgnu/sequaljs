@@ -2,6 +2,7 @@ import { BaseBlock } from './base_block';
 import {GlobalModification, Modification, ModificationMap} from './modification';
 import {AminoAcid} from "./amino_acid";
 import {ProFormaParser, SequenceAmbiguity} from "./proforma";
+import {allModifications, validateAmbiguityLabels, validateCrosslinkAndBranchLabels} from "./label_validation";
 
 /**
  * Count unique elements in a sequence.
@@ -203,33 +204,52 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
    * @returns The parsed sequence.
    */
   static fromProforma(proformaStr: string): Sequence {
-    if (proformaStr.includes("//")) {
-      const chains = proformaStr.split("//");
-      const mainSeq = Sequence.fromProforma(chains[0]);
-      mainSeq.isMultiChain = true;
-      mainSeq.chains = [mainSeq];
+    return Sequence._fromProforma(proformaStr, true);
+  }
 
-      for (const chainStr of chains.slice(1)) {
-        const chain = Sequence.fromProforma(chainStr);
-        mainSeq.chains.push(chain);
+  /**
+   * validateCrosslinksAndBranches is false when parsing one chain of a larger "//" ion, since
+   * that check must run once, after all chains are combined, not per chain.
+   */
+  private static _fromProforma(proformaStr: string, validateCrosslinksAndBranches: boolean): Sequence {
+    // "+" is the outermost separator and must be split before "//", since "//" is scoped within
+    // a single peptidoform ion (splitting "//" first would mis-group chains across "+" members).
+    const peptidoforms = splitChimericProforma(proformaStr);
+    if (peptidoforms.length > 1) {
+      const mainSeq = Sequence._fromProforma(peptidoforms[0], true);
+      mainSeq.isChimeric = true;
+      mainSeq.peptidoforms = [mainSeq];
+      for (const pep of peptidoforms.slice(1)) {
+        // Global modifications may only appear once, before the first "+"-joined member.
+        if (pep.startsWith("<")) {
+          throw new Error("Global modifications must appear once, before all chimeric peptidoform ions");
+        }
+        const peptidoform = Sequence._fromProforma(pep, true);
+        peptidoform.isChimeric = true;
+        mainSeq.peptidoforms.push(peptidoform);
       }
 
       return mainSeq;
     }
 
-    const peptidoforms = splitChimericProforma(proformaStr);
-    if (peptidoforms.length > 1) {
-      const mainSeq = Sequence.fromProforma(peptidoforms[0]);
-      mainSeq.isChimeric = true;
-      mainSeq.peptidoforms = [mainSeq];
-      for (const pep of peptidoforms.slice(1)) {
-        const peptidoform = this.fromProforma(pep);
-        peptidoform.isChimeric = true;
-        mainSeq.peptidoforms.push(peptidoform);
-      }
-      for (const chainStr of peptidoforms.slice(1)) {
-        const chain = Sequence.fromProforma(chainStr);
+    const chains = splitInterchainProforma(proformaStr);
+    if (chains.length > 1) {
+      const mainSeq = Sequence._fromProforma(chains[0], false);
+      mainSeq.isMultiChain = true;
+      mainSeq.chains = [mainSeq];
+
+      for (const chainStr of chains.slice(1)) {
+        // Ion/ion-set names (>>name)/(>>>name) may only appear once, on the first chain.
+        if (chainStr.startsWith("(>>")) {
+          throw new Error("Peptidoform-ion and ion-set names must appear once, before all chains");
+        }
+        const chain = Sequence._fromProforma(chainStr, false);
         mainSeq.chains.push(chain);
+      }
+
+      if (validateCrosslinksAndBranches) {
+        const allMods = mainSeq.chains.flatMap(c => allModifications(c));
+        validateCrosslinkAndBranchLabels(allMods);
       }
 
       return mainSeq;
@@ -290,6 +310,12 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
     seq.peptidoformIonName = peptidoformIonName;
     seq.compoundIonName = compoundIonName;
 
+    // Ambiguity groups are always scoped to a single linear peptide.
+    validateAmbiguityLabels(allModifications(seq));
+    if (validateCrosslinksAndBranches) {
+      validateCrosslinkAndBranchLabels(allModifications(seq));
+    }
+
     return seq;
   }
 
@@ -306,6 +332,10 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
 
     if (modPosition !== 'left' && modPosition !== 'right') {
       throw new Error("modPosition must be either 'left' or 'right'");
+    }
+
+    if (typeof seq === 'string') {
+      Sequence._validateEnclosureBalance(seq);
     }
 
     for (const [block, isMod] of this._sequenceIterator(seq)) {
@@ -438,6 +468,27 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
    * @yields A tuple containing the block and a boolean indicating if it is a modification.
    * @private
    */
+  /**
+   * Checks every '(', '[', '{' in seq has a matching close, since _sequenceIterator silently
+   * drops any trailing content following an unmatched closing bracket instead of erroring.
+   */
+  private static _validateEnclosureBalance(seq: string): void {
+    let depth = 0;
+    for (const char of seq) {
+      if (Sequence._MOD_ENCLOSURE_START.has(char)) {
+        depth++;
+      } else if (Sequence._MOD_ENCLOSURE_END.has(char)) {
+        depth--;
+        if (depth < 0) {
+          throw new Error(`Unmatched closing bracket in sequence "${seq}"`);
+        }
+      }
+    }
+    if (depth !== 0) {
+      throw new Error(`Unclosed bracket in sequence "${seq}"`);
+    }
+  }
+
   private *_sequenceIterator(seq: string | any[]): Generator<[any, boolean]> {
     let modOpen = 0;
     let block = '';
@@ -505,16 +556,20 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
    * @returns The ProForma string.
    */
   toProforma(): string {
+    // "isChimeric" and "isMultiChain" can both be true on the same object (a chimeric member
+    // that's itself a "//"-joined ion), so these must be checked independently, not as an
+    // if/else - otherwise whichever is checked second is silently ignored.
+    if (this.isChimeric && this.peptidoforms.length > 0) {
+      return this.peptidoforms.map(pep => pep._toProformaSingle()).join("+");
+    }
+    return this._toProformaSingle();
+  }
+
+  private _toProformaSingle(): string {
     if (this.isMultiChain) {
       return this.chains.map(chain => this._chainToProforma(chain)).join("//");
-    } else {
-      if (this.isChimeric) {
-        if (this.peptidoforms.length > 0) {
-          return this.peptidoforms.map(pep => this._chainToProforma(pep)).join("+");
-        }
-      }
-      return this._chainToProforma(this as unknown as Sequence<AminoAcid>)
     }
+    return this._chainToProforma(this as unknown as Sequence<AminoAcid>);
   }
 
   /**
@@ -527,26 +582,27 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
   private _chainToProforma(chain: Sequence): string {
     let result = "";
 
-    // ProForma 2.1: Add naming notations (Section 8.2)
-    if (this.compoundIonName) {
-      result += `(>>>${this.compoundIonName})`;
+    // ProForma 2.1: Add naming notations (Section 8.2) - use the chain's own names, not the
+    // parent sequence's, since ion/ion-set names only belong on the first chain of a "//" ion.
+    if (chain.compoundIonName) {
+      result += `(>>>${chain.compoundIonName})`;
     }
-    if (this.peptidoformIonName) {
-      result += `(>>${this.peptidoformIonName})`;
+    if (chain.peptidoformIonName) {
+      result += `(>>${chain.peptidoformIonName})`;
     }
-    if (this.peptidoformName) {
-      result += `(>${this.peptidoformName})`;
+    if (chain.peptidoformName) {
+      result += `(>${chain.peptidoformName})`;
     }
 
     // Add global modifications
-    for (const mod of this.globalMods) {
+    for (const mod of chain.globalMods) {
       result += mod.toProforma();
     }
 
     // Handle position ranges and modifications
     const ranges: [number, number, Modification][] = [];
-    for (let i = 0; i < this.seq.length; i++) {
-      const aa = this.seq[i];
+    for (let i = 0; i < chain.seq.length; i++) {
+      const aa = chain.seq[i];
       if (aa instanceof AminoAcid) {
         for (const mod of aa.mods) {
           if (
@@ -574,16 +630,11 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
       }
 
 
-      for (const [modValue, count] of unknownModsByValue.entries()) {
-        let ambiguityStr = "";
-        if (count > 1) {
-          ambiguityStr += `[${modValue}]`;
-          ambiguityStr += `^${count}?`;
-        } else {
-          ambiguityStr = `[${modValue}]`;
-          ambiguityStr += `?`;
+      if (unknownModsByValue.size > 0) {
+        for (const [modValue, count] of unknownModsByValue.entries()) {
+          result += count > 1 ? `[${modValue}]^${count}` : `[${modValue}]`;
         }
-        result += ambiguityStr;
+        result += "?";
       }
     }
 
@@ -611,7 +662,7 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
     }
 
     // Handle sequence ambiguities
-    const sortedAmbiguities = [...this.sequenceAmbiguities].sort((a, b) => a.position - b.position);
+    const sortedAmbiguities = [...chain.sequenceAmbiguities].sort((a, b) => a.position - b.position);
     let ambiguityIndex = 0;
 
     // Process each amino acid in the sequence
@@ -687,6 +738,12 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
       }
     }
 
+    // A sequence ambiguity positioned at (or past) the end of the sequence never gets emitted
+    // by the loop above, since it only checks positions up to the last residue.
+    for (; ambiguityIndex < sortedAmbiguities.length; ambiguityIndex++) {
+      result += `(?${sortedAmbiguities[ambiguityIndex].value})`;
+    }
+
     // Handle C-terminal modifications
     const cChainMod = chain.mods.get(-2);
     if (cChainMod) {
@@ -704,6 +761,8 @@ export class Sequence<T extends BaseBlock = AminoAcid> {
       if (chain.ionicSpecies) {
         result += `[${chain.ionicSpecies}]`;
       }
+    } else if (chain.ionicSpecies) {
+      result += `/[${chain.ionicSpecies}]`;
     }
 
     return result;
@@ -1369,4 +1428,30 @@ export function splitChimericProforma(proformaStr: string): string[] {
 
   // Filter out any empty strings
   return parts.filter(part => part.length > 0);
+}
+
+/**
+ * Splits a ProForma string on "//" outside of any brackets.
+ */
+export function splitInterchainProforma(proformaStr: string): string[] {
+  const parts: string[] = [];
+  let currentPartStart = 0;
+  let bracketLevel = 0;
+
+  for (let i = 0; i < proformaStr.length; i++) {
+    const char = proformaStr[i];
+
+    if (char === '[' || char === '{' || char === '(') {
+      bracketLevel++;
+    } else if (char === ']' || char === '}' || char === ')') {
+      bracketLevel = Math.max(0, bracketLevel - 1);
+    } else if (char === '/' && bracketLevel === 0 && proformaStr[i + 1] === '/') {
+      parts.push(proformaStr.substring(currentPartStart, i));
+      i += 1;
+      currentPartStart = i + 1;
+    }
+  }
+
+  parts.push(proformaStr.substring(currentPartStart));
+  return parts;
 }
